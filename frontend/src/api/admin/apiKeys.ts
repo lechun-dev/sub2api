@@ -6,11 +6,42 @@
 import { apiClient } from '../client'
 import type { ApiKey } from '@/types'
 
+export interface IssueAPIKeyRequest {
+  user_id: number
+  name: string
+  group_id?: number | null
+  quota?: number
+  expires_in_days?: number | null
+  rate_limit_5h?: number
+  rate_limit_1d?: number
+  rate_limit_7d?: number
+  ip_whitelist?: string[]
+  ip_blacklist?: string[]
+}
+
+export interface IssueAPIKeyResponse {
+  api_key: ApiKey
+  plaintext_key: string
+}
+
 export interface UpdateApiKeyGroupResult {
   api_key: ApiKey
   auto_granted_group_access: boolean
   granted_group_id?: number
   granted_group_name?: string
+}
+
+/**
+ * Issue an API key for an existing user without requiring user login.
+ */
+export async function issueAPIKey(
+  request: IssueAPIKeyRequest,
+  idempotencyKey: string
+): Promise<IssueAPIKeyResponse> {
+  const { data } = await apiClient.post<IssueAPIKeyResponse>('/admin/api-keys/issue', request, {
+    headers: { 'Idempotency-Key': idempotencyKey }
+  })
+  return data
 }
 
 /**
@@ -27,6 +58,7 @@ export async function updateApiKeyGroup(id: number, groupId: number | null): Pro
 }
 
 export const apiKeysAPI = {
+  issueAPIKey,
   updateApiKeyGroup
 }
 

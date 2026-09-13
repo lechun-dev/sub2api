@@ -176,6 +176,7 @@ export default {
     affiliateTransferRecords: 'Transfer Records',
     profile: 'Profile',
     users: 'Users',
+    keyIssuance: 'API Key Issuance',
     groups: 'Groups',
     channels: 'Channels',
     availableChannels: 'Available Channels',

@@ -24,6 +24,101 @@ func setupAPIKeyHandler(adminSvc service.AdminService) *gin.Engine {
 	return router
 }
 
+func setupAPIKeyIssueHandler(adminSvc service.AdminService, creator service.APIKeyCreator) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	h := NewAdminAPIKeyIssuanceHandler(adminSvc, creator)
+	router.POST("/api/v1/admin/api-keys/issue", h.Issue)
+	return router
+}
+
+type recordingAPIKeyCreator struct {
+	result  *service.APIKey
+	err     error
+	userID  int64
+	request service.CreateAPIKeyRequest
+}
+
+func (f *recordingAPIKeyCreator) Create(_ context.Context, userID int64, req service.CreateAPIKeyRequest) (*service.APIKey, error) {
+	f.userID = userID
+	f.request = req
+	return f.result, f.err
+}
+
+func TestAdminAPIKeyHandler_Issue(t *testing.T) {
+	now := time.Now().UTC()
+	creator := &recordingAPIKeyCreator{
+		result: &service.APIKey{
+			ID:        20,
+			UserID:    1,
+			Key:       "sk-issued",
+			Name:      "customer access",
+			Status:    service.StatusAPIKeyActive,
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+	}
+	router := setupAPIKeyIssueHandler(newStubAdminService(), creator)
+
+	body := `{
+		"user_id": 1,
+		"name": " customer access ",
+		"group_id": 2,
+		"quota": 12.5,
+		"expires_in_days": 30,
+		"rate_limit_5h": 1.5,
+		"rate_limit_1d": 5,
+		"rate_limit_7d": 10,
+		"ip_whitelist": ["203.0.113.10"]
+	}`
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/api-keys/issue", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", "issue-test-1")
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, int64(1), creator.userID)
+	require.Equal(t, "customer access", creator.request.Name)
+	require.NotNil(t, creator.request.GroupID)
+	require.Equal(t, int64(2), *creator.request.GroupID)
+	require.Equal(t, 12.5, creator.request.Quota)
+	require.Equal(t, []string{"203.0.113.10"}, creator.request.IPWhitelist)
+
+	var resp struct {
+		Code int `json:"code"`
+		Data struct {
+			APIKey struct {
+				ID  int64  `json:"id"`
+				Key string `json:"key"`
+			} `json:"api_key"`
+			PlaintextKey string `json:"plaintext_key"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	require.Equal(t, 0, resp.Code)
+	require.Equal(t, int64(20), resp.Data.APIKey.ID)
+	require.Empty(t, resp.Data.APIKey.Key)
+	require.Equal(t, "sk-issued", resp.Data.PlaintextKey)
+}
+
+func TestAdminAPIKeyHandler_Issue_RejectsInactiveUser(t *testing.T) {
+	svc := newStubAdminService()
+	svc.users[0].Status = service.StatusDisabled
+	creator := &recordingAPIKeyCreator{}
+	router := setupAPIKeyIssueHandler(svc, creator)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/api-keys/issue", bytes.NewBufferString(`{"user_id":1,"name":"access"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", "issue-inactive-1")
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.Contains(t, rec.Body.String(), "USER_NOT_ACTIVE")
+	require.Zero(t, creator.userID)
+}
+
 func TestAdminAPIKeyHandler_UpdateGroup_InvalidID(t *testing.T) {
 	router := setupAPIKeyHandler(newStubAdminService())
 	body := `{"group_id": 2}`

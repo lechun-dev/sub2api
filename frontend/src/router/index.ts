@@ -451,6 +451,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/key-issuance',
+    name: 'AdminKeyIssuance',
+    component: () => import('@/views/admin/KeyIssuanceView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'API Key Issuance',
+      titleKey: 'admin.keyIssuance.title',
+      descriptionKey: 'admin.keyIssuance.description'
+    }
+  },
+  {
     path: '/admin/groups',
     name: 'AdminGroups',
     component: () => import('@/views/admin/GroupsView.vue'),
