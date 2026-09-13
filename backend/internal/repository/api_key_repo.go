@@ -648,6 +648,58 @@ func (r *apiKeyRepository) ListByGroupID(ctx context.Context, groupID int64, par
 	return outKeys, paginationResultFromTotal(int64(total), params), nil
 }
 
+// 2026-09-13 coder(lq): The admin inventory keeps user_id as its primary sort key so one user's keys stay together across the table.
+func (r *apiKeyRepository) ListAllForAdmin(ctx context.Context, params pagination.PaginationParams, filters service.APIKeyListFilters) ([]service.APIKey, *pagination.PaginationResult, error) {
+	q := r.activeQuery()
+
+	if filters.Search != "" {
+		q = q.Where(apikey.Or(
+			apikey.NameContainsFold(filters.Search),
+			apikey.KeyContainsFold(filters.Search),
+			apikey.HasUserWith(user.Or(
+				user.UsernameContainsFold(filters.Search),
+				user.EmailContainsFold(filters.Search),
+			)),
+		))
+	}
+	if filters.Status != "" {
+		q = q.Where(apikey.StatusEQ(filters.Status))
+	}
+	if filters.GroupID != nil {
+		if *filters.GroupID == 0 {
+			q = q.Where(apikey.GroupIDIsNil())
+		} else {
+			q = q.Where(apikey.GroupIDEQ(*filters.GroupID))
+		}
+	}
+
+	total, err := q.Count(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	keys, err := q.
+		WithUser().
+		WithGroup().
+		Order(dbent.Asc(apikey.FieldUserID), dbent.Desc(apikey.FieldCreatedAt), dbent.Desc(apikey.FieldID)).
+		Offset(params.Offset()).
+		Limit(params.Limit()).
+		All(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	outKeys := make([]service.APIKey, 0, len(keys))
+	for i := range keys {
+		outKeys = append(outKeys, *apiKeyEntityToService(keys[i]))
+	}
+	if err := r.attachLastUsedIPs(ctx, outKeys); err != nil {
+		return nil, nil, err
+	}
+
+	return outKeys, paginationResultFromTotal(int64(total), params), nil
+}
+
 func apiKeyListOrder(params pagination.PaginationParams) []func(*entsql.Selector) {
 	sortBy := strings.ToLower(strings.TrimSpace(params.SortBy))
 	sortOrder := params.NormalizedSortOrder(pagination.SortOrderDesc)

@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"strconv"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
@@ -100,4 +101,39 @@ func (h *AdminAPIKeyIssuanceHandler) Issue(c *gin.Context) {
 			PlaintextKey: apiKey.Key,
 		}, nil
 	})
+}
+
+// 2026-09-13 coder(lq): List all keys for the admin inventory while retaining the existing issuance handler boundary.
+func (h *AdminAPIKeyIssuanceHandler) List(c *gin.Context) {
+	lister, ok := h.adminService.(service.AdminAPIKeyLister)
+	if !ok {
+		response.InternalError(c, "admin API key listing is unavailable")
+		return
+	}
+
+	page, pageSize := response.ParsePagination(c)
+	filters := service.APIKeyListFilters{
+		Search: strings.TrimSpace(c.Query("search")),
+		Status: strings.TrimSpace(c.Query("status")),
+	}
+	if raw := strings.TrimSpace(c.Query("group_id")); raw != "" {
+		groupID, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || groupID < 0 {
+			response.BadRequest(c, "group_id must be a non-negative integer")
+			return
+		}
+		filters.GroupID = &groupID
+	}
+
+	keys, total, err := lister.ListAdminAPIKeys(c.Request.Context(), page, pageSize, filters)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	out := make([]*dto.APIKey, 0, len(keys))
+	for i := range keys {
+		out = append(out, dto.APIKeyFromService(&keys[i]))
+	}
+	response.Paginated(c, out, total, page, pageSize)
 }

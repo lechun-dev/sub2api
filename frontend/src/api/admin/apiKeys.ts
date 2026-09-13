@@ -4,7 +4,13 @@
  */
 
 import { apiClient } from '../client'
-import type { ApiKey } from '@/types'
+import type { ApiKey, PaginatedResponse } from '@/types'
+
+export interface AdminAPIKeyListFilters {
+  search?: string
+  status?: string
+  group_id?: number
+}
 
 export interface IssueAPIKeyRequest {
   user_id: number
@@ -57,9 +63,28 @@ export async function updateApiKeyGroup(id: number, groupId: number | null): Pro
   return data
 }
 
+/** List every non-deleted API key, grouped by owner in the server response. */
+export async function listAdminAPIKeys(
+  page = 1,
+  pageSize = 20,
+  filters?: AdminAPIKeyListFilters
+): Promise<PaginatedResponse<ApiKey>> {
+  const { data } = await apiClient.get<PaginatedResponse<ApiKey>>('/admin/api-keys', {
+    params: {
+      page,
+      page_size: pageSize,
+      search: filters?.search,
+      status: filters?.status,
+      group_id: filters?.group_id
+    }
+  })
+  return data
+}
+
 export const apiKeysAPI = {
   issueAPIKey,
-  updateApiKeyGroup
+  updateApiKeyGroup,
+  listAdminAPIKeys
 }
 
 export default apiKeysAPI

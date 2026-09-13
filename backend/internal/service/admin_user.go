@@ -610,6 +610,23 @@ func (s *adminServiceImpl) GetUserAPIKeys(ctx context.Context, userID int64, pag
 	return keys, result.Total, nil
 }
 
+// 2026-09-13 coder(lq): Expose the admin-wide key inventory through an optional capability instead of widening AdminService.
+func (s *adminServiceImpl) ListAdminAPIKeys(ctx context.Context, page, pageSize int, filters APIKeyListFilters) ([]APIKey, int64, error) {
+	lister, ok := s.apiKeyRepo.(AdminAPIKeyRepositoryLister)
+	if !ok {
+		return nil, 0, errors.New("admin API key listing is unavailable")
+	}
+
+	result, paginationResult, err := lister.ListAllForAdmin(ctx, pagination.PaginationParams{
+		Page:     page,
+		PageSize: pageSize,
+	}, filters)
+	if err != nil {
+		return nil, 0, err
+	}
+	return result, paginationResult.Total, nil
+}
+
 func (s *adminServiceImpl) GetUserRPMStatus(ctx context.Context, userID int64) (*UserRPMStatus, error) {
 	if s.userRPMCache == nil {
 		return nil, ErrRPMStatusUnavailable

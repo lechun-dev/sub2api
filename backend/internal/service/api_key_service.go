@@ -125,6 +125,19 @@ type apiKeyAllByUserIDLister interface {
 	ListAllByUserID(ctx context.Context, userID int64, filters APIKeyListFilters) ([]APIKey, error)
 }
 
+// AdminAPIKeyRepositoryLister is an optional repository capability used by the
+// administrator key inventory. Keeping it separate preserves lightweight test
+// repositories and the existing user-scoped API key contract.
+type AdminAPIKeyRepositoryLister interface {
+	ListAllForAdmin(ctx context.Context, params pagination.PaginationParams, filters APIKeyListFilters) ([]APIKey, *pagination.PaginationResult, error)
+}
+
+// AdminAPIKeyLister is deliberately separate from AdminService so the admin
+// key inventory can evolve without expanding every AdminService test stub.
+type AdminAPIKeyLister interface {
+	ListAdminAPIKeys(ctx context.Context, page, pageSize int, filters APIKeyListFilters) ([]APIKey, int64, error)
+}
+
 // APIKeyRateLimitData holds rate limit usage and window state for an API key.
 type APIKeyRateLimitData struct {
 	Usage5h       float64

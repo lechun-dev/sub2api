@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sub2API 管理员 API 密钥原型</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172033;
+      --muted: #8791a4;
+      --line: #e7ebf0;
+      --soft: #f7f9fb;
+      --teal: #11b3a5;
+      --teal-dark: #079b91;
+      --teal-soft: #eafaf8;
+      --blue-soft: #edf6ff;
+      --shadow: 0 10px 30px rgba(35, 67, 92, .06);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 1180px;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--ink);
+      background: #f7fafb;
+    }
+
+    button, input { font: inherit; }
+    button { border: 0; cursor: pointer; }
+
+    .app { display: flex; min-height: 100vh; }
+    .sidebar {
+      width: 214px;
+      flex: 0 0 214px;
+      background: #fff;
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+    }
+    .brand {
+      height: 82px;
+      padding: 18px 22px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid #f0f2f5;
+    }
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      color: #72f5ea;
+      font-size: 25px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #17304f, #07192e);
+      box-shadow: 0 4px 12px rgba(8, 45, 70, .18);
+    }
+    .brand-name { font-size: 20px; font-weight: 800; letter-spacing: -.5px; }
+    .version {
+      display: inline-block;
+      margin-top: 3px;
+      padding: 3px 8px;
+      border-radius: 8px;
+      color: #7b8494;
+      background: #f0f2f5;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .nav { padding: 18px 8px; }
+    .nav-label { padding: 13px 18px 7px; color: #a1a9b7; font-size: 12px; font-weight: 700; }
+    .nav-item {
+      height: 46px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 18px;
+      margin: 3px 0;
+      border-radius: 12px;
+      color: #687388;
+      font-size: 15px;
+      font-weight: 650;
+    }
+    .nav-item.active { color: var(--teal-dark); background: var(--teal-soft); }
+    .nav-icon { width: 20px; text-align: center; color: currentColor; font-size: 18px; }
+    .sidebar-bottom { margin-top: auto; padding: 8px; border-top: 1px solid #f0f2f5; }
+
+    .main { min-width: 0; flex: 1; }
+    .topbar {
+      height: 82px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 34px;
+      background: #fff;
+      border-bottom: 1px solid #f0f2f5;
+    }
+    .page-heading h1 { margin: 0; font-size: 22px; letter-spacing: -.4px; }
+    .page-heading p { margin: 7px 0 0; color: #8993a4; font-size: 13px; }
+    .top-actions { display: flex; align-items: center; gap: 22px; color: #768195; }
+    .bell { font-size: 20px; }
+    .locale { font-weight: 650; }
+    .balance { padding: 10px 16px; border-radius: 13px; color: #087e76; background: #effbf9; font-size: 15px; font-weight: 750; }
+    .profile { display: flex; align-items: center; gap: 9px; color: #263044; font-weight: 700; }
+    .avatar { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; color: #fff; background: var(--teal); }
+    .profile small { display: block; margin-top: 2px; color: #8993a4; font-size: 12px; font-weight: 500; }
+
+    .content {
+      min-height: calc(100vh - 82px);
+      padding: 38px 38px 26px;
+      background:
+        radial-gradient(circle at 20% 4%, rgba(208, 243, 239, .65), transparent 32%),
+        #f8fbfc;
+    }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 27px; }
+    .filters { display: flex; align-items: center; gap: 13px; }
+    .search {
+      width: 304px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 0 16px;
+      border: 1px solid #e3e8ee;
+      border-radius: 13px;
+      background: #fff;
+      box-shadow: 0 2px 5px rgba(28, 52, 78, .025);
+    }
+    .search span { color: #9ca6b7; font-size: 20px; }
+    .search input { width: 100%; border: 0; outline: 0; color: var(--ink); font-size: 14px; }
+    .search input::placeholder { color: #a3adbc; }
+    .select {
+      width: 152px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 17px;
+      border: 1px solid #e3e8ee;
+      border-radius: 13px;
+      background: #fff;
+      color: #364052;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .chevron { color: #a3adbc; font-size: 17px; }
+    .actions { display: flex; gap: 13px; }
+    .icon-button, .outline-button, .primary-button {
+      height: 48px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border-radius: 13px;
+      font-weight: 700;
+    }
+    .icon-button, .outline-button { border: 1px solid #e3e8ee; background: #fff; color: #687388; box-shadow: 0 2px 5px rgba(28, 52, 78, .035); }
+    .icon-button { width: 52px; font-size: 21px; }
+    .outline-button { padding: 0 18px; font-size: 14px; }
+    .primary-button { padding: 0 20px; color: #fff; background: var(--teal); box-shadow: 0 7px 14px rgba(17, 179, 165, .2); }
+    .primary-button:hover { background: var(--teal-dark); }
+
+    .table-shell { overflow: hidden; border: 1px solid #e5e9ee; border-radius: 17px 17px 0 0; background: #fff; box-shadow: var(--shadow); }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    thead { background: #fbfcfd; }
+    th { height: 63px; padding: 0 17px; text-align: left; border-bottom: 1px solid #edf0f3; color: #697488; font-size: 13px; font-weight: 750; white-space: nowrap; }
+    td { height: 95px; padding: 0 17px; border-bottom: 1px solid #f0f2f5; color: #5f6a7d; font-size: 13px; vertical-align: middle; }
+    tbody tr:hover { background: #fcfefe; }
+    tbody tr:last-child td { border-bottom: 0; }
+    .sortable { display: flex; align-items: center; gap: 6px; }
+    .sort { color: #bdc5d0; font-size: 12px; }
+    .user { display: flex; align-items: center; gap: 10px; }
+    .user-avatar { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; color: #4c8791; background: #edf7f8; font-size: 12px; font-weight: 800; }
+    .user-name { color: #263044; font-weight: 750; }
+    .user-mail { margin-top: 4px; color: #9aa4b3; font-size: 11px; }
+    .key-line { display: flex; align-items: center; gap: 8px; }
+    code { padding: 6px 8px; border-radius: 6px; color: #23aaa4; background: #eff9f8; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+    .copy { padding: 3px; color: #a2adba; background: transparent; font-size: 16px; }
+    .group { display: inline-flex; align-items: center; gap: 7px; padding: 6px 9px; border-radius: 7px; color: #5c6575; background: #f1f3f5; font-size: 12px; font-weight: 650; }
+    .group-dot { width: 7px; height: 7px; border-radius: 50%; background: #222b3b; }
+    .number { display: inline-grid; min-width: 34px; height: 30px; place-items: center; border-radius: 8px; color: #707a8b; background: #f4f6f8; font-weight: 750; }
+    .usage strong { color: #273145; }
+    .usage div + div { margin-top: 5px; }
+    .muted { color: #98a2b1; }
+    .badge { display: inline-flex; padding: 6px 11px; border-radius: 20px; color: #12a36e; background: #e4f9ef; font-size: 12px; font-weight: 750; }
+    .badge.off { color: #8b95a5; background: #f0f2f4; }
+    .row-actions { display: flex; align-items: center; gap: 3px; }
+    .row-actions button { min-width: 45px; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 7px 4px; color: #7f8998; background: transparent; font-size: 11px; }
+    .row-actions button:hover { color: var(--teal-dark); }
+    .row-actions .danger:hover { color: #e16d70; }
+    .row-icon { font-size: 16px; line-height: 1; }
+    .empty { display: none; padding: 70px 20px; text-align: center; color: #9aa4b3; }
+
+    .pagination { height: 76px; display: flex; align-items: center; justify-content: space-between; padding: 0 28px; color: #687388; background: #fff; border-top: 1px solid #edf0f3; }
+    .page-size { display: inline-flex; align-items: center; gap: 10px; }
+    .page-size button { height: 38px; padding: 0 14px; border: 1px solid #e3e8ee; border-radius: 10px; color: #596477; background: #fff; }
+    .pages { display: flex; align-items: center; gap: 0; }
+    .pages button { width: 44px; height: 44px; border: 1px solid #e4e8ed; color: #a3adba; background: #fff; font-size: 18px; }
+    .pages button:first-child { border-radius: 9px 0 0 9px; }
+    .pages button:last-child { border-radius: 0 9px 9px 0; }
+    .pages .current { color: var(--teal-dark); border-color: var(--teal); background: #f2fffd; font-size: 14px; }
+
+    @media (max-width: 1300px) {
+      .content { padding-left: 24px; padding-right: 24px; }
+      th, td { padding-left: 12px; padding-right: 12px; }
+      .row-actions button { min-width: 39px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">S</div>
+        <div><div class="brand-name">Sub2API</div><span class="version">v0.2.5</span></div>
+      </div>
+      <nav class="nav">
+        <div class="nav-item"><span class="nav-icon">▦</span>仪表盘</div>
+        <div class="nav-item"><span class="nav-icon">▥</span>运维监控</div>
+        <div class="nav-item"><span class="nav-icon">♧</span>用户管理</div>
+        <div class="nav-item"><span class="nav-icon">⌁</span>密钥发放</div>
+        <div class="nav-item"><span class="nav-icon">□</span>分组管理</div>
+        <div class="nav-item"><span class="nav-icon">▱</span>渠道管理</div>
+        <div class="nav-item"><span class="nav-icon">▤</span>订阅管理</div>
+        <div class="nav-item"><span class="nav-icon">◎</span>账号管理</div>
+        <div class="nav-item"><span class="nav-icon">♧</span>公告</div>
+        <div class="nav-item"><span class="nav-icon">▰</span>IP 管理</div>
+        <div class="nav-item"><span class="nav-icon">⌑</span>兑换码</div>
+        <div class="nav-item"><span class="nav-icon">♧</span>优惠码</div>
+        <div class="nav-item"><span class="nav-icon">▥</span>使用记录</div>
+        <div class="nav-item"><span class="nav-icon">◇</span>操作日志</div>
+        <div class="nav-item"><span class="nav-icon">⚙</span>系统设置</div>
+        <div class="nav-label">我的账户</div>
+        <div class="nav-item active"><span class="nav-icon">⌁</span>API 密钥</div>
+        <div class="nav-item"><span class="nav-icon">▥</span>使用记录</div>
+        <div class="nav-item"><span class="nav-icon">◉</span>渠道状态</div>
+        <div class="nav-item"><span class="nav-icon">▤</span>我的订阅</div>
+        <div class="nav-item"><span class="nav-icon">♧</span>兑换</div>
+        <div class="nav-item"><span class="nav-icon">♙</span>个人资料</div>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="nav-item"><span class="nav-icon">☾</span>深色模式</div>
+        <div class="nav-item"><span class="nav-icon">‹</span>收起</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="page-heading">
+          <h1>API 密钥</h1>
+          <p>管理全部用户的 API 密钥和访问令牌</p>
+        </div>
+        <div class="top-actions">
+          <span class="bell">♧</span><span class="locale">🇨🇳 ZH⌄</span>
+          <span class="balance">▣ $100000.00</span>
+          <div class="profile"><span class="avatar">李群</span><span>李群<small>管理员</small></span><b>⌄</b></div>
+        </div>
+      </header>
+
+      <section class="content">
+        <div class="toolbar">
+          <div class="filters">
+            <label class="search"><span>⌕</span><input id="search" type="search" placeholder="搜索密钥或用户姓名..." /></label>
+            <button class="select">全部分组 <span class="chevron">⌄</span></button>
+            <button class="select">全部状态 <span class="chevron">⌄</span></button>
+          </div>
+          <div class="actions">
+            <button class="icon-button" title="刷新">↻</button>
+            <button class="outline-button">▥ <span>列设置</span></button>
+            <button class="primary-button">＋ <span>创建密钥</span></button>
+          </div>
+        </div>
+
+        <div class="table-shell">
+          <table>
+            <colgroup>
+              <col style="width: 10%"><col style="width: 17%"><col style="width: 16%"><col style="width: 13%"><col style="width: 8%"><col style="width: 13%"><col style="width: 11%"><col style="width: 8%"><col style="width: 12%"><col style="width: 17%">
+            </colgroup>
+            <thead>
+              <tr>
+                <th><span class="sortable">名称 <span class="sort">↕</span></span></th>
+                <th>所属用户</th>
+                <th>API 密钥</th>
+                <th>分组</th>
+                <th>当前并发</th>
+                <th>用量</th>
+                <th><span class="sortable">过期时间 <span class="sort">↕</span></span></th>
+                <th>状态</th>
+                <th><span class="sortable">创建时间 <span class="sort">↕</span></span></th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="rows">
+              <tr data-search="生产环境 李群 sk-c2d8f3a1...5171">
+                <td><strong>生产环境</strong></td>
+                <td><div class="user"><span class="user-avatar">李</span><div><div class="user-name">李群</div><div class="user-mail">binging.li@lechun.cc · #40</div></div></div></td>
+                <td><div class="key-line"><code>sk-c2d...5171</code><button class="copy" title="复制">▢</button></div></td>
+                <td><span class="group"><span class="group-dot"></span> grok <small>1x</small></span></td>
+                <td><span class="number">0</span></td>
+                <td class="usage"><div>今日：<strong>$0.0000</strong></div><div>近30天：<strong>$0.0000</strong></div></td>
+                <td class="muted">永久有效</td>
+                <td><span class="badge">活跃</span></td>
+                <td class="muted">2026/09/12 20:22</td>
+                <td><div class="row-actions"><button><span class="row-icon">▣</span>使用</button><button><span class="row-icon">↗</span>发放</button><button><span class="row-icon">⊘</span>禁用</button><button><span class="row-icon">✎</span>编辑</button><button class="danger"><span class="row-icon">♲</span>删除</button></div></td>
+              </tr>
+              <tr data-search="Claude 白洋 sk-7a92c4e0...1288">
+                <td><strong>Claude 客户端</strong></td>
+                <td><div class="user"><span class="user-avatar">白</span><div><div class="user-name">白洋</div><div class="user-mail">baiyang@lechun.cc · #27</div></div></div></td>
+                <td><div class="key-line"><code>sk-7a92...1288</code><button class="copy" title="复制">▢</button></div></td>
+                <td><span class="group"><span class="group-dot" style="background:#7d61c8"></span> claude <small>1x</small></span></td>
+                <td><span class="number">2</span></td>
+                <td class="usage"><div>今日：<strong>$0.0821</strong></div><div>近30天：<strong>$1.3300</strong></div></td>
+                <td class="muted">2026/10/30</td>
+                <td><span class="badge">活跃</span></td>
+                <td class="muted">2026/09/08 11:40</td>
+                <td><div class="row-actions"><button><span class="row-icon">▣</span>使用</button><button><span class="row-icon">↗</span>发放</button><button><span class="row-icon">⊘</span>禁用</button><button><span class="row-icon">✎</span>编辑</button><button class="danger"><span class="row-icon">♲</span>删除</button></div></td>
+              </tr>
+              <tr data-search="测试密钥 张笑 sk-1f63bd22...8840">
+                <td><strong>测试密钥</strong></td>
+                <td><div class="user"><span class="user-avatar">张</span><div><div class="user-name">张笑</div><div class="user-mail">13672245501@163.com · #121</div></div></div></td>
+                <td><div class="key-line"><code>sk-1f63...8840</code><button class="copy" title="复制">▢</button></div></td>
+                <td><span class="group"><span class="group-dot" style="background:#2b9c9a"></span> 默认分组</span></td>
+                <td><span class="number">0</span></td>
+                <td class="usage"><div>今日：<strong>$0.0000</strong></div><div>近30天：<strong>$0.0000</strong></div></td>
+                <td class="muted">永久有效</td>
+                <td><span class="badge off">已禁用</span></td>
+                <td class="muted">2026/09/04 09:12</td>
+                <td><div class="row-actions"><button><span class="row-icon">▣</span>使用</button><button><span class="row-icon">↗</span>发放</button><button><span class="row-icon">✓</span>启用</button><button><span class="row-icon">✎</span>编辑</button><button class="danger"><span class="row-icon">♲</span>删除</button></div></td>
+              </tr>
+            </tbody>
+          </table>
+          <div id="empty" class="empty">没有匹配的密钥或用户</div>
+        </div>
+
+        <footer class="pagination">
+          <div>显示 <strong id="count">1</strong> 至 <strong id="total">3</strong> 共 3 条结果</div>
+          <div class="page-size">每页：<button>20　⌄</button></div>
+          <div class="pages"><button>‹</button><button class="current">1</button><button>›</button></div>
+        </footer>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const input = document.querySelector('#search')
+    const rows = [...document.querySelectorAll('#rows tr')]
+    const empty = document.querySelector('#empty')
+    const count = document.querySelector('#count')
+    const total = document.querySelector('#total')
+    total.textContent = rows.length
+    function filterRows() {
+      const query = input.value.trim().toLowerCase()
+      let visible = 0
+      rows.forEach((row) => {
+        const matched = !query || row.dataset.search.toLowerCase().includes(query)
+        row.style.display = matched ? '' : 'none'
+        if (matched) visible += 1
+      })
+      count.textContent = visible ? '1' : '0'
+      total.textContent = visible
+      empty.style.display = visible ? 'none' : 'block'
+    }
+    input.addEventListener('input', filterRows)
+  </script>
+</body>
+</html>

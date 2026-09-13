@@ -1,7 +1,15 @@
 export default {
   keyIssuance: {
-    title: '密钥发放',
-    description: '为已有用户生成 API 密钥，并直接交付给用户使用。',
+    title: 'API 密钥',
+    description: '查看所有用户的 API 密钥，并直接发放或新建密钥。',
+    allKeys: '全部 API 密钥',
+    allKeysHint: '同一用户的多把密钥会连续显示，可按用户、密钥名称或密钥内容模糊搜索。',
+    searchKeys: '搜索用户名、邮箱、密钥名称或 Key...',
+    user: '用户',
+    allGroups: '全部分组',
+    allStatuses: '全部状态',
+    groupFilter: '按分组筛选',
+    statusFilter: '按状态筛选',
     recipient: '接收用户',
     searchUsers: '搜索活跃用户',
     noUsers: '未找到活跃用户',
