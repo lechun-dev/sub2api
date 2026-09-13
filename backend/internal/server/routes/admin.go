@@ -187,6 +187,8 @@ func registerAdminAPIKeyRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		apiKeys.GET("", h.Admin.APIKeyIssuance.List)
 		apiKeys.POST("/issue", h.Admin.APIKeyIssuance.Issue)
 		apiKeys.PUT("/:id", h.Admin.APIKey.UpdateGroup)
+		apiKeys.PATCH("/:id", h.Admin.APIKey.Update)
+		apiKeys.DELETE("/:id", h.Admin.APIKey.Delete)
 	}
 }
 

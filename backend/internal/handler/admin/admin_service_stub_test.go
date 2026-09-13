@@ -783,6 +783,29 @@ func (s *stubAdminService) AdminResetAPIKeyRateLimitUsage(ctx context.Context, k
 	return nil, service.ErrAPIKeyNotFound
 }
 
+func (s *stubAdminService) AdminUpdateAPIKey(ctx context.Context, keyID int64, req service.UpdateAPIKeyRequest) (*service.APIKey, error) {
+	for i := range s.apiKeys {
+		if s.apiKeys[i].ID == keyID {
+			if req.Name != nil {
+				s.apiKeys[i].Name = *req.Name
+			}
+			k := s.apiKeys[i]
+			return &k, nil
+		}
+	}
+	return nil, service.ErrAPIKeyNotFound
+}
+
+func (s *stubAdminService) AdminDeleteAPIKey(ctx context.Context, keyID int64) error {
+	for i := range s.apiKeys {
+		if s.apiKeys[i].ID == keyID {
+			s.apiKeys = append(s.apiKeys[:i], s.apiKeys[i+1:]...)
+			return nil
+		}
+	}
+	return service.ErrAPIKeyNotFound
+}
+
 func (s *stubAdminService) ResetAccountQuota(ctx context.Context, id int64) error {
 	return nil
 }
