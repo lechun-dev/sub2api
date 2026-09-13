@@ -744,6 +744,7 @@ export interface ApiKey {
   updated_at: string
   current_concurrency: number
   group?: Group
+  user?: User
   rate_limit_5h: number
   rate_limit_1d: number
   rate_limit_7d: number

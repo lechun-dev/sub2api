@@ -1,7 +1,15 @@
 export default {
   keyIssuance: {
-    title: 'API Key Issuance',
-    description: 'Create an API key for an existing user and hand it over directly.',
+    title: 'API Keys',
+    description: 'View every user\'s API keys and deliver an existing key or create a new one.',
+    allKeys: 'All API keys',
+    allKeysHint: 'Keys stay grouped by owner. Search by user, key name, or key content.',
+    searchKeys: 'Search user, email, key name, or key...',
+    user: 'User',
+    allGroups: 'All groups',
+    allStatuses: 'All statuses',
+    groupFilter: 'Filter by group',
+    statusFilter: 'Filter by status',
     recipient: 'Recipient',
     searchUsers: 'Search active users',
     noUsers: 'No active users found',
