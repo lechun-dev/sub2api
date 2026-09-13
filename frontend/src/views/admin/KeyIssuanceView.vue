@@ -172,6 +172,58 @@
             <div class="flex items-center gap-1">
               <button
                 type="button"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400"
+                :title="t('keys.useKey')"
+                @click="openUseKeyModal(row)"
+              >
+                <Icon name="terminal" size="sm" />
+                <span class="text-xs">{{ t('keys.useKey') }}</span>
+              </button>
+              <button
+                v-if="!publicSettings?.hide_ccs_import_button"
+                type="button"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
+                :title="t('keys.importToCcSwitch')"
+                @click="importToCcswitch(row)"
+              >
+                <Icon name="upload" size="sm" />
+                <span class="text-xs">{{ t('keys.importToCcSwitch') }}</span>
+              </button>
+              <button
+                type="button"
+                :class="[
+                  'flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+                  row.status === 'active'
+                    ? 'text-gray-500 hover:bg-yellow-50 hover:text-yellow-600 dark:hover:bg-yellow-900/20 dark:hover:text-yellow-400'
+                    : 'text-gray-500 hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400'
+                ]"
+                :title="row.status === 'active' ? t('keys.disable') : t('keys.enable')"
+                @click="toggleKeyStatus(row)"
+              >
+                <Icon v-if="row.status === 'active'" name="ban" size="sm" />
+                <Icon v-else name="checkCircle" size="sm" />
+                <span class="text-xs">{{ row.status === 'active' ? t('keys.disable') : t('keys.enable') }}</span>
+              </button>
+              <button
+                type="button"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+                :title="t('common.edit')"
+                @click="editKey(row)"
+              >
+                <Icon name="edit" size="sm" />
+                <span class="text-xs">{{ t('common.edit') }}</span>
+              </button>
+              <button
+                type="button"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                :title="t('common.delete')"
+                @click="confirmDelete(row)"
+              >
+                <Icon name="trash" size="sm" />
+                <span class="text-xs">{{ t('common.delete') }}</span>
+              </button>
+              <button
+                type="button"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-emerald-50 hover:text-emerald-600 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-emerald-900/20 dark:hover:text-emerald-400"
                 :disabled="row.status !== 'active' || !row.key"
                 :title="row.status === 'active' ? t('admin.keyIssuance.directIssue') : t('admin.keyIssuance.keyUnavailable')"
@@ -266,6 +318,68 @@
     </section>
 
     <BaseDialog
+      v-if="result"
+      :show="showDeliveryDialog"
+      :title="resultSource === 'existing' ? t('admin.keyIssuance.existingResultTitle') : t('admin.keyIssuance.resultTitle')"
+      width="wide"
+      @close="closeDeliveryDialog"
+    >
+      <div class="space-y-5">
+        <div class="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 dark:border-emerald-900/60 dark:bg-emerald-900/20">
+          <div>
+            <p class="font-medium text-emerald-800 dark:text-emerald-200">
+              {{ t('admin.keyIssuance.issuedFor') }}: {{ resultUserLabel }}
+            </p>
+            <p class="mt-1 text-sm text-emerald-700 dark:text-emerald-300">
+              {{ resultSource === 'existing' ? t('admin.keyIssuance.existingResultWarning') : t('admin.keyIssuance.resultWarning') }}
+            </p>
+          </div>
+          <Icon name="check" size="md" class="text-emerald-600 dark:text-emerald-400" />
+        </div>
+
+        <div>
+          <div class="mb-2 flex items-center justify-between gap-3">
+            <label class="input-label mb-0">{{ t('admin.keyIssuance.plaintextKey') }}</label>
+            <button type="button" class="btn btn-secondary btn-sm" @click="copyKey">
+              <Icon name="copy" size="sm" class="mr-2" />
+              {{ t('admin.keyIssuance.copyKey') }}
+            </button>
+          </div>
+          <textarea
+            :value="result.plaintext_key"
+            readonly
+            rows="3"
+            class="w-full resize-none rounded-lg border border-amber-300 bg-amber-50 p-3 font-mono text-sm text-gray-900 outline-none dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-100"
+          />
+        </div>
+
+        <div>
+          <div class="mb-2 flex items-center justify-between gap-3">
+            <label class="input-label mb-0">{{ t('admin.keyIssuance.instructionsTitle') }}</label>
+            <button type="button" class="btn btn-secondary btn-sm" @click="copyInstructions">
+              <Icon name="copy" size="sm" class="mr-2" />
+              {{ t('admin.keyIssuance.copyInstructions') }}
+            </button>
+          </div>
+          <textarea
+            :value="instructionsText"
+            readonly
+            rows="7"
+            class="w-full resize-none rounded-lg border border-gray-200 bg-gray-50 p-3 font-mono text-xs leading-5 text-gray-700 outline-none dark:border-dark-700 dark:bg-dark-900 dark:text-gray-300"
+          />
+        </div>
+      </div>
+
+      <template #footer>
+        <div class="flex justify-end">
+          <button type="button" class="btn btn-secondary" @click="closeDeliveryDialog">
+            {{ t('common.close') }}
+          </button>
+        </div>
+      </template>
+    </BaseDialog>
+
+    <BaseDialog
       :show="showCreateDialog"
       :title="t('admin.keyIssuance.createNewKey')"
       width="wide"
@@ -279,8 +393,9 @@
             :options="userOptions"
             :loading="loadingUsers"
             :placeholder="t('admin.keyIssuance.searchUsers')"
-            :searchable="true"
+            remote
             :search-placeholder="t('admin.keyIssuance.searchUsers')"
+            @search="handleUserSearch"
           />
         </div>
 
@@ -348,11 +463,160 @@
         </div>
       </template>
     </BaseDialog>
+
+    <BaseDialog
+      :show="showEditDialog"
+      :title="t('keys.editKey')"
+      width="wide"
+      @close="closeEditDialog"
+    >
+      <form id="admin-edit-key-form" class="space-y-5" @submit.prevent="handleEditSubmit">
+        <div>
+          <label class="input-label">{{ t('keys.nameLabel') }}</label>
+          <input v-model="editForm.name" type="text" required class="input w-full" :placeholder="t('keys.namePlaceholder')" maxlength="100" />
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label class="input-label">{{ t('keys.groupLabel') }}</label>
+            <Select v-model="editForm.group_id" :options="editGroupOptions" :loading="loadingGroups" :placeholder="t('keys.selectGroup')" :searchable="true" :search-placeholder="t('keys.searchGroup')" />
+          </div>
+          <div>
+            <label class="input-label">{{ t('keys.statusLabel') }}</label>
+            <Select v-model="editForm.status" :options="editStatusOptions" :placeholder="t('keys.selectStatus')" />
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="input-label mb-0">{{ t('keys.ipRestriction') }}</label>
+            <button type="button" :aria-pressed="editForm.enable_ip_restriction" class="relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none" :class="editForm.enable_ip_restriction ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'" @click="editForm.enable_ip_restriction = !editForm.enable_ip_restriction">
+              <span class="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow ring-0 transition" :class="editForm.enable_ip_restriction ? 'translate-x-4' : 'translate-x-0'" />
+            </button>
+          </div>
+          <div v-if="editForm.enable_ip_restriction" class="space-y-4 pt-2">
+            <div>
+              <label class="input-label">{{ t('keys.ipWhitelist') }}</label>
+              <textarea v-model="editForm.ip_whitelist" rows="3" class="input w-full font-mono text-sm" :placeholder="t('keys.ipWhitelistPlaceholder')" />
+              <p class="input-hint">{{ t('keys.ipWhitelistHint') }}</p>
+            </div>
+            <div>
+              <label class="input-label">{{ t('keys.ipBlacklist') }}</label>
+              <textarea v-model="editForm.ip_blacklist" rows="3" class="input w-full font-mono text-sm" :placeholder="t('keys.ipBlacklistPlaceholder')" />
+              <p class="input-hint">{{ t('keys.ipBlacklistHint') }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <label class="input-label">{{ t('keys.quotaLimit') }}</label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+            <input v-model.number="editForm.quota" type="number" min="0" step="0.01" class="input w-full pl-7" :placeholder="t('keys.quotaAmountPlaceholder')" />
+          </div>
+          <p class="input-hint">{{ t('keys.quotaAmountHint') }}</p>
+        </div>
+
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="input-label mb-0">{{ t('keys.rateLimitSection') }}</label>
+            <button type="button" :aria-pressed="editForm.enable_rate_limit" class="relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none" :class="editForm.enable_rate_limit ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'" @click="editForm.enable_rate_limit = !editForm.enable_rate_limit">
+              <span class="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow ring-0 transition" :class="editForm.enable_rate_limit ? 'translate-x-4' : 'translate-x-0'" />
+            </button>
+          </div>
+          <p v-if="editForm.enable_rate_limit" class="input-hint">{{ t('keys.rateLimitHint') }}</p>
+          <div v-if="editForm.enable_rate_limit" class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div>
+              <label class="input-label">{{ t('keys.rateLimit5h') }}</label>
+              <input v-model.number="editForm.rate_limit_5h" type="number" min="0" step="0.01" class="input w-full" />
+            </div>
+            <div>
+              <label class="input-label">{{ t('keys.rateLimit1d') }}</label>
+              <input v-model.number="editForm.rate_limit_1d" type="number" min="0" step="0.01" class="input w-full" />
+            </div>
+            <div>
+              <label class="input-label">{{ t('keys.rateLimit7d') }}</label>
+              <input v-model.number="editForm.rate_limit_7d" type="number" min="0" step="0.01" class="input w-full" />
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="input-label mb-0">{{ t('keys.expiration') }}</label>
+            <button type="button" :aria-pressed="editForm.enable_expiration" class="relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none" :class="editForm.enable_expiration ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'" @click="editForm.enable_expiration = !editForm.enable_expiration">
+              <span class="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow ring-0 transition" :class="editForm.enable_expiration ? 'translate-x-4' : 'translate-x-0'" />
+            </button>
+          </div>
+          <div v-if="editForm.enable_expiration" class="max-w-sm">
+            <label class="input-label">{{ t('keys.expirationDate') }}</label>
+            <input v-model="editForm.expiration_date" type="datetime-local" class="input w-full" />
+            <p class="input-hint">{{ t('keys.expirationDateHint') }}</p>
+          </div>
+        </div>
+      </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button type="button" class="btn btn-secondary" @click="closeEditDialog">{{ t('common.cancel') }}</button>
+          <button type="submit" form="admin-edit-key-form" class="btn btn-primary" :disabled="submitting || loadingGroups">
+            <Icon v-if="submitting" name="refresh" size="md" class="mr-2 animate-spin" />
+            <Icon v-else name="check" size="md" class="mr-2" />
+            {{ submitting ? t('keys.saving') : t('common.update') }}
+          </button>
+        </div>
+      </template>
+    </BaseDialog>
+
+    <ConfirmDialog
+      :show="showDeleteDialog"
+      :title="t('keys.deleteKey')"
+      :message="t('keys.deleteConfirmMessage', { name: selectedKey?.name })"
+      :confirm-text="t('common.delete')"
+      :cancel-text="t('common.cancel')"
+      :danger="true"
+      @confirm="handleDelete"
+      @cancel="showDeleteDialog = false"
+    />
+
+    <UseKeyModal
+      :show="showUseKeyModal"
+      :api-key="selectedKey?.key || ''"
+      :base-url="publicSettings?.api_base_url || ''"
+      :platform="selectedKey?.group?.platform || null"
+      :allow-messages-dispatch="selectedKey?.group?.allow_messages_dispatch || false"
+      @close="closeUseKeyModal"
+    />
+
+    <BaseDialog
+      :show="showCcsClientSelect"
+      :title="t('keys.ccsClientSelect.title')"
+      width="narrow"
+      @close="closeCcsClientSelect"
+    >
+      <div class="space-y-4">
+        <p class="text-sm text-gray-600 dark:text-gray-400">{{ t('keys.ccsClientSelect.description') }}</p>
+        <div class="grid grid-cols-2 gap-3">
+          <button type="button" class="flex flex-col items-center gap-2 rounded-xl border-2 border-gray-200 p-4 transition-all hover:border-primary-500 hover:bg-primary-50 dark:border-dark-600 dark:hover:border-primary-500 dark:hover:bg-primary-900/20" @click="handleCcsClientSelect('claude')">
+            <Icon name="terminal" size="xl" class="text-gray-600 dark:text-gray-400" />
+            <span class="font-medium text-gray-900 dark:text-white">{{ t('keys.ccsClientSelect.claudeCode') }}</span>
+            <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('keys.ccsClientSelect.claudeCodeDesc') }}</span>
+          </button>
+          <button type="button" class="flex flex-col items-center gap-2 rounded-xl border-2 border-gray-200 p-4 transition-all hover:border-primary-500 hover:bg-primary-50 dark:border-dark-600 dark:hover:border-primary-500 dark:hover:bg-primary-900/20" @click="handleCcsClientSelect('gemini')">
+            <Icon name="sparkles" size="xl" class="text-gray-600 dark:text-gray-400" />
+            <span class="font-medium text-gray-900 dark:text-white">{{ t('keys.ccsClientSelect.geminiCli') }}</span>
+            <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('keys.ccsClientSelect.geminiCliDesc') }}</span>
+          </button>
+        </div>
+      </div>
+      <template #footer>
+        <div class="flex justify-end"><button type="button" class="btn btn-secondary" @click="closeCcsClientSelect">{{ t('common.cancel') }}</button></div>
+      </template>
+    </BaseDialog>
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
@@ -360,11 +624,13 @@ import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
+import UseKeyModal from '@/components/keys/UseKeyModal.vue'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
 import { adminAPI } from '@/api/admin'
 import { getPublicSettings } from '@/api/auth'
-import type { AdminGroup, AdminUser, ApiKey, PublicSettings } from '@/types'
+import type { AdminGroup, AdminUser, ApiKey, PublicSettings, UpdateApiKeyRequest } from '@/types'
 import type { IssueAPIKeyResponse } from '@/api/admin/apiKeys'
 import type { Column } from '@/components/common/types'
 import { useAppStore } from '@/stores/app'
@@ -372,6 +638,7 @@ import { useClipboard } from '@/composables/useClipboard'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatDateTime } from '@/utils/format'
 import { maskApiKey } from '@/utils/maskApiKey'
+import { buildCcSwitchImportDeeplink, type CcSwitchClientType } from '@/utils/ccswitchImport'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -387,12 +654,23 @@ const loadingUsers = ref(false)
 const loadingGroups = ref(false)
 const issuing = ref(false)
 const showCreateDialog = ref(false)
+const showEditDialog = ref(false)
+const showDeleteDialog = ref(false)
+const showUseKeyModal = ref(false)
+const showCcsClientSelect = ref(false)
+const showDeliveryDialog = ref(false)
+const selectedKey = ref<ApiKey | null>(null)
+const pendingCcsRow = ref<ApiKey | null>(null)
+const submitting = ref(false)
 const copiedKeyId = ref<number | null>(null)
 const result = ref<IssueAPIKeyResponse | null>(null)
 const resultSource = ref<'existing' | 'new' | null>(null)
 const resultUserLabel = ref('')
 const issueOperationKey = ref<string | null>(null)
+const pinnedUser = ref<AdminUser | null>(null)
 let keysRequestId = 0
+let usersRequestId = 0
+let usersRequestAbort: AbortController | null = null
 
 const filterSearch = ref('')
 const filterGroupId = ref<string | number>('')
@@ -413,6 +691,22 @@ const form = reactive({
   rate_limit_5h: 0,
   rate_limit_1d: 0,
   rate_limit_7d: 0
+})
+
+const editForm = reactive({
+  name: '',
+  group_id: null as number | null,
+  status: 'active' as 'active' | 'inactive',
+  enable_ip_restriction: false,
+  ip_whitelist: '',
+  ip_blacklist: '',
+  quota: null as number | null,
+  enable_rate_limit: false,
+  rate_limit_5h: null as number | null,
+  rate_limit_1d: null as number | null,
+  rate_limit_7d: null as number | null,
+  enable_expiration: false,
+  expiration_date: ''
 })
 
 const columns = computed<Column[]>(() => [
@@ -442,12 +736,19 @@ const statusFilterOptions = computed<SelectOption[]>(() => [
   { value: 'expired', label: t('admin.keyIssuance.statusExpired') }
 ])
 
-const userOptions = computed<SelectOption[]>(() =>
-  users.value.map((user) => ({
+const userOptions = computed<SelectOption[]>(() => {
+  const options = users.value.map((user) => ({
     value: user.id,
     label: `${userLabel(user)} · ${user.email}`
   }))
-)
+  if (pinnedUser.value && !users.value.some((user) => user.id === pinnedUser.value?.id)) {
+    options.unshift({
+      value: pinnedUser.value.id,
+      label: `${userLabel(pinnedUser.value)} · ${pinnedUser.value.email}`
+    })
+  }
+  return options
+})
 
 const groupOptions = computed<SelectOption[]>(() => [
   { value: null, label: t('admin.keyIssuance.noGroup') },
@@ -455,6 +756,19 @@ const groupOptions = computed<SelectOption[]>(() => [
     value: group.id,
     label: `${group.name} (#${group.id})`
   }))
+])
+
+const editGroupOptions = computed<SelectOption[]>(() => [
+  { value: null, label: t('admin.keyIssuance.noGroup') },
+  ...allGroups.value.map((group) => ({
+    value: group.id,
+    label: `${group.name} (#${group.id})`
+  }))
+])
+
+const editStatusOptions = computed<SelectOption[]>(() => [
+  { value: 'active', label: t('admin.keyIssuance.statusActive') },
+  { value: 'inactive', label: t('admin.keyIssuance.statusInactive') }
 ])
 
 const apiBaseURL = computed(() => {
@@ -534,21 +848,30 @@ async function loadKeys(): Promise<void> {
   }
 }
 
-async function loadUsers(): Promise<void> {
+async function loadUsers(search = ''): Promise<void> {
+  const query = search.trim()
+  const requestId = ++usersRequestId
+  usersRequestAbort?.abort()
+  const controller = new AbortController()
+  usersRequestAbort = controller
   loadingUsers.value = true
   try {
     const response = await adminAPI.users.list(1, 1000, {
       status: 'active',
       role: 'user',
+      search: query || undefined,
       sort_by: 'email',
       sort_order: 'asc'
-    })
-    users.value = response.items
+    }, { signal: controller.signal })
+    if (requestId !== usersRequestId) return
+    users.value = response.items || []
   } catch (error) {
+    if (controller.signal.aborted) return
+    if (requestId !== usersRequestId) return
     users.value = []
     appStore.showError(extractApiErrorMessage(error, t('admin.keyIssuance.failedToLoadUsers')))
   } finally {
-    loadingUsers.value = false
+    if (requestId === usersRequestId) loadingUsers.value = false
   }
 }
 
@@ -615,10 +938,12 @@ async function refreshPage(): Promise<void> {
 function openCreateDialog(): void {
   resetForm()
   showCreateDialog.value = true
+  void loadUsers()
 }
 
 function resetForm(): void {
   form.user_id = null
+  pinnedUser.value = null
   form.name = ''
   form.group_id = null
   form.quota = 0
@@ -628,6 +953,19 @@ function resetForm(): void {
   form.rate_limit_7d = 0
   issueOperationKey.value = null
 }
+
+function handleUserSearch(query: string): void {
+  void loadUsers(query)
+}
+
+watch(() => form.user_id, (userId) => {
+  if (userId === null) {
+    pinnedUser.value = null
+    return
+  }
+  const selectedUser = users.value.find((user) => user.id === userId)
+  if (selectedUser) pinnedUser.value = selectedUser
+})
 
 async function issueKey(): Promise<void> {
   if (!form.user_id) {
@@ -641,7 +979,8 @@ async function issueKey(): Promise<void> {
     return
   }
 
-  const selectedUser = users.value.find((user) => user.id === form.user_id)
+  const selectedUser = users.value.find((user) => user.id === form.user_id) ||
+    (pinnedUser.value?.id === form.user_id ? pinnedUser.value : undefined)
   if (!selectedUser || selectedUser.status !== 'active') {
     appStore.showError(t('admin.keyIssuance.userInactive'))
     return
@@ -667,6 +1006,7 @@ async function issueKey(): Promise<void> {
     resultSource.value = 'new'
     resultUserLabel.value = userLabel(selectedUser)
     showCreateDialog.value = false
+    showDeliveryDialog.value = true
     appStore.showSuccess(t('admin.keyIssuance.keyCreated'))
     await loadKeys()
   } catch (error) {
@@ -685,7 +1025,184 @@ function deliverExistingKey(key: ApiKey): void {
   resultSource.value = 'existing'
   resultUserLabel.value = keyUserLabel(key)
   issueOperationKey.value = null
+  showDeliveryDialog.value = true
   appStore.showSuccess(t('admin.keyIssuance.existingKeySelected'))
+}
+
+function closeDeliveryDialog(): void {
+  showDeliveryDialog.value = false
+}
+
+function openUseKeyModal(key: ApiKey): void {
+  selectedKey.value = key
+  showUseKeyModal.value = true
+}
+
+function closeUseKeyModal(): void {
+  showUseKeyModal.value = false
+  selectedKey.value = null
+}
+
+function formatDateTimeLocal(isoDate: string): string {
+  const date = new Date(isoDate)
+  const pad = (value: number) => value.toString().padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function editKey(key: ApiKey): void {
+  selectedKey.value = key
+  editForm.name = key.name
+  editForm.group_id = key.group_id
+  editForm.status = key.status === 'quota_exhausted' || key.status === 'expired' ? 'inactive' : key.status
+  editForm.enable_ip_restriction = (key.ip_whitelist?.length || 0) > 0 || (key.ip_blacklist?.length || 0) > 0
+  editForm.ip_whitelist = (key.ip_whitelist || []).join('\n')
+  editForm.ip_blacklist = (key.ip_blacklist || []).join('\n')
+  editForm.quota = key.quota > 0 ? key.quota : null
+  editForm.enable_rate_limit = key.rate_limit_5h > 0 || key.rate_limit_1d > 0 || key.rate_limit_7d > 0
+  editForm.rate_limit_5h = key.rate_limit_5h > 0 ? key.rate_limit_5h : null
+  editForm.rate_limit_1d = key.rate_limit_1d > 0 ? key.rate_limit_1d : null
+  editForm.rate_limit_7d = key.rate_limit_7d > 0 ? key.rate_limit_7d : null
+  editForm.enable_expiration = !!key.expires_at
+  editForm.expiration_date = key.expires_at ? formatDateTimeLocal(key.expires_at) : ''
+  showEditDialog.value = true
+}
+
+function closeEditDialog(): void {
+  showEditDialog.value = false
+  selectedKey.value = null
+}
+
+function shouldSubmitEditStatus(key: ApiKey, status: 'active' | 'inactive'): boolean {
+  if (key.status === 'quota_exhausted' || key.status === 'expired') return status === 'active'
+  return true
+}
+
+async function toggleKeyStatus(key: ApiKey): Promise<void> {
+  const newStatus = key.status === 'active' ? 'inactive' : 'active'
+  try {
+    await adminAPI.apiKeys.updateAPIKey(key.id, { status: newStatus })
+    appStore.showSuccess(newStatus === 'active' ? t('keys.keyEnabledSuccess') : t('keys.keyDisabledSuccess'))
+    await loadKeys()
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, t('keys.failedToUpdateStatus')))
+  }
+}
+
+function confirmDelete(key: ApiKey): void {
+  selectedKey.value = key
+  showDeleteDialog.value = true
+}
+
+async function handleDelete(): Promise<void> {
+  if (!selectedKey.value) return
+  const keyId = selectedKey.value.id
+  try {
+    await adminAPI.apiKeys.deleteAPIKey(keyId)
+    showDeleteDialog.value = false
+    selectedKey.value = null
+    appStore.showSuccess(t('keys.keyDeletedSuccess'))
+    await loadKeys()
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, t('keys.failedToDelete')))
+  }
+}
+
+async function handleEditSubmit(): Promise<void> {
+  if (!selectedKey.value) return
+  const name = editForm.name.trim()
+  if (!name) {
+    appStore.showError(t('admin.keyIssuance.nameRequired'))
+    return
+  }
+
+  const parseIPList = (value: string): string[] => value.split('\n').map((item) => item.trim()).filter(Boolean)
+  const updates: UpdateApiKeyRequest = {
+    name,
+    ip_whitelist: editForm.enable_ip_restriction ? parseIPList(editForm.ip_whitelist) : [],
+    ip_blacklist: editForm.enable_ip_restriction ? parseIPList(editForm.ip_blacklist) : [],
+    quota: editForm.quota && editForm.quota > 0 ? editForm.quota : 0,
+    rate_limit_5h: editForm.enable_rate_limit && editForm.rate_limit_5h && editForm.rate_limit_5h > 0 ? editForm.rate_limit_5h : 0,
+    rate_limit_1d: editForm.enable_rate_limit && editForm.rate_limit_1d && editForm.rate_limit_1d > 0 ? editForm.rate_limit_1d : 0,
+    rate_limit_7d: editForm.enable_rate_limit && editForm.rate_limit_7d && editForm.rate_limit_7d > 0 ? editForm.rate_limit_7d : 0
+  }
+
+  if (editForm.group_id !== selectedKey.value.group_id) {
+    updates.group_id = editForm.group_id === null ? 0 : editForm.group_id
+  }
+  if (shouldSubmitEditStatus(selectedKey.value, editForm.status)) {
+    updates.status = editForm.status
+  }
+  if (editForm.enable_expiration && editForm.expiration_date) {
+    updates.expires_at = new Date(editForm.expiration_date).toISOString()
+  } else {
+    updates.clear_expiration = true
+  }
+
+  submitting.value = true
+  try {
+    await adminAPI.apiKeys.updateAPIKey(selectedKey.value.id, updates)
+    appStore.showSuccess(t('keys.keyUpdatedSuccess'))
+    closeEditDialog()
+    await loadKeys()
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, t('keys.failedToSave')))
+  } finally {
+    submitting.value = false
+  }
+}
+
+function importToCcswitch(row: ApiKey): void {
+  const platform = row.group?.platform || 'anthropic'
+  if (platform === 'antigravity') {
+    pendingCcsRow.value = row
+    showCcsClientSelect.value = true
+    return
+  }
+  executeCcsImport(row, platform === 'gemini' ? 'gemini' : 'claude')
+}
+
+function executeCcsImport(row: ApiKey, clientType: CcSwitchClientType): void {
+  const baseUrl = publicSettings.value?.api_base_url || window.location.origin
+  const platform = row.group?.platform || 'anthropic'
+  const usageScript = `({
+    request: {
+      url: "{{baseUrl}}/v1/usage",
+      method: "GET",
+      headers: { "Authorization": "Bearer {{apiKey}}" }
+    },
+    extractor: function(response) {
+      const remaining = response?.remaining ?? response?.quota?.remaining ?? response?.balance;
+      const unit = response?.unit ?? response?.quota?.unit ?? "USD";
+      return { isValid: response?.is_active ?? response?.isValid ?? true, remaining, unit };
+    }
+  })`
+  const providerName = (publicSettings.value?.site_name || 'sub2api').trim() || 'sub2api'
+  const deeplink = buildCcSwitchImportDeeplink({
+    baseUrl,
+    platform,
+    clientType,
+    providerName,
+    apiKey: row.key,
+    usageScript
+  })
+  try {
+    window.open(deeplink, '_self')
+    window.setTimeout(() => {
+      if (document.hasFocus()) appStore.showError(t('keys.ccSwitchNotInstalled'))
+    }, 100)
+  } catch {
+    appStore.showError(t('keys.ccSwitchNotInstalled'))
+  }
+}
+
+function handleCcsClientSelect(clientType: CcSwitchClientType): void {
+  if (pendingCcsRow.value) executeCcsImport(pendingCcsRow.value, clientType)
+  closeCcsClientSelect()
+}
+
+function closeCcsClientSelect(): void {
+  showCcsClientSelect.value = false
+  pendingCcsRow.value = null
 }
 
 async function copyExistingKey(key: ApiKey): Promise<void> {

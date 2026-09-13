@@ -4,7 +4,7 @@
  */
 
 import { apiClient } from '../client'
-import type { ApiKey, PaginatedResponse } from '@/types'
+import type { ApiKey, PaginatedResponse, UpdateApiKeyRequest } from '@/types'
 
 export interface AdminAPIKeyListFilters {
   search?: string
@@ -63,6 +63,17 @@ export async function updateApiKeyGroup(id: number, groupId: number | null): Pro
   return data
 }
 
+/** Update an API key's editable fields with administrator privileges. */
+export async function updateAPIKey(id: number, request: UpdateApiKeyRequest): Promise<ApiKey> {
+  const { data } = await apiClient.patch<{ api_key: ApiKey }>(`/admin/api-keys/${id}`, request)
+  return data.api_key
+}
+
+/** Delete an API key with administrator privileges. */
+export async function deleteAPIKey(id: number): Promise<void> {
+  await apiClient.delete(`/admin/api-keys/${id}`)
+}
+
 /** List every non-deleted API key, grouped by owner in the server response. */
 export async function listAdminAPIKeys(
   page = 1,
@@ -84,6 +95,8 @@ export async function listAdminAPIKeys(
 export const apiKeysAPI = {
   issueAPIKey,
   updateApiKeyGroup,
+  updateAPIKey,
+  deleteAPIKey,
   listAdminAPIKeys
 }
 

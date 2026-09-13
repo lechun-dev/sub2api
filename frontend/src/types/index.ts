@@ -780,6 +780,7 @@ export interface UpdateApiKeyRequest {
   ip_blacklist?: string[]
   quota?: number // Quota limit in USD (null = no change, 0 = unlimited)
   expires_at?: string | null // Expiration time (null = no change)
+  clear_expiration?: boolean // Clear the expiration time
   reset_quota?: boolean // Reset quota_used to 0
   rate_limit_5h?: number
   rate_limit_1d?: number
