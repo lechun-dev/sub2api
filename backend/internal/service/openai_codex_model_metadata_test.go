@@ -647,6 +647,8 @@ func TestAPIKeyCodexImageCapabilitiesFollowModelMapping(t *testing.T) {
 		"deepseek-v4-flash",
 		"deepseek-v4-flash-vision-exp",
 		"deepseek-coder",
+		"deepseek-v4-pro",
+		"deepseek-v4-pro-0813",
 	}
 	for _, model := range imageAliases {
 		for _, source := range []string{
@@ -670,11 +672,23 @@ func TestAPIKeyCodexImageCapabilitiesFollowModelMapping(t *testing.T) {
 		expected []any
 	}{
 		{
-			name: "mapped text-only model stays text only",
+			name: "mapped DeepSeek V4 Pro advertises image input",
 			account: newAccount(map[string]any{
 				"deepseek-v4-flash": "deepseek-v4-pro",
 			}, nil),
-			expected: []any{"text"},
+			expected: []any{"text", "image"},
+		},
+		{
+			name: "stale text-only DeepSeek V4 Pro snapshot advertises image input",
+			account: newAccount(map[string]any{
+				"deepseek-v4-flash": "deepseek-v4-pro",
+			}, map[string]UpstreamModelMetadata{
+				"deepseek-v4-pro": {
+					ID:              "deepseek-v4-pro",
+					InputModalities: []string{"text"},
+				},
+			}),
+			expected: []any{"text", "image"},
 		},
 		{
 			name:     "unmapped image model advertises image input",

@@ -725,7 +725,7 @@ func TestBuildCodexModelsManifestForGroupUsesProviderImageCapabilities(t *testin
 			accounts: []Account{{
 				ID: 16, Platform: PlatformDeepseek, Type: AccountTypeAPIKey,
 			}},
-			modalities: []any{"text"},
+			modalities: []any{"text", "image"},
 		},
 		{
 			name:  "official OpenAI API key",
@@ -839,9 +839,19 @@ func TestBuildCodexModelsManifestForGroupUsesDeepSeekVisionCapabilities(t *testi
 			modalities: []any{"text", "image"},
 		},
 		{
-			name: "DeepSeek V4 Pro stays text only", platform: PlatformDeepseek,
+			name: "DeepSeek V4 Pro supports image input", platform: PlatformDeepseek,
 			accounts:   []Account{newAccount(1, PlatformDeepseek, "deepseek-v4-pro", nil)},
-			modalities: []any{"text"},
+			modalities: []any{"text", "image"},
+		},
+		{
+			name: "DeepSeek V4 Pro 0813 supports image input", platform: PlatformDeepseek,
+			accounts:   []Account{newAccount(1, PlatformDeepseek, "deepseek-v4-pro-0813", nil)},
+			modalities: []any{"text", "image"},
+		},
+		{
+			name: "stale text-only DeepSeek V4 Pro snapshot advertises image input", platform: PlatformDeepseek,
+			accounts:   []Account{newAccount(1, PlatformDeepseek, "deepseek-v4-pro", []string{"text"})},
+			modalities: []any{"text", "image"},
 		},
 		{
 			name: "explicit text-only metadata", platform: PlatformDeepseek,

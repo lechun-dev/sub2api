@@ -1221,6 +1221,13 @@ func resolveCodexModelInputModalities(account *Account, upstreamModel string) ([
 	if len(modalities) == 0 {
 		return nil, false
 	}
+	// DeepSeek V4 Pro briefly synced with a stale text-only modality list even
+	// though its Codex route accepts images. Repair that snapshot only for
+	// DeepSeek-compatible API key accounts; explicit metadata for every other
+	// model remains authoritative.
+	if isDeepSeekV4ProCodexModel(upstreamModel) && isDeepSeekCodexImageCapabilityAccount(account) {
+		return []string{"text", "image"}, true
+	}
 	// Official GPT-6 Astra metadata briefly shipped with a stale text-only
 	// modality list. Keep explicit provider metadata authoritative for
 	// compatible hosts, but repair that stale official snapshot at the
@@ -1250,8 +1257,7 @@ func codexModelNameFallbackSupportsImageInput(account *Account, upstreamModel st
 	if account == nil {
 		return false
 	}
-	if (account.Platform == PlatformDeepseek && account.Type == AccountTypeAPIKey) ||
-		(account.Platform == PlatformOpenAI && account.IsOpenAIApiKey()) {
+	if isDeepSeekCodexImageCapabilityAccount(account) {
 		if deepseekModelNameSupportsImageInput(upstreamModel) {
 			return true
 		}
@@ -1289,13 +1295,33 @@ func codexModelNameFallbackSupportsImageInput(account *Account, upstreamModel st
 // upgraded to image input by a substring heuristic.
 func deepseekModelNameSupportsImageInput(model string) bool {
 	switch strings.ToLower(strings.TrimSpace(model)) {
-	case "deepseek-flash", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp", "deepseek-coder":
+	case "deepseek-flash",
+		"deepseek-v4-flash",
+		"deepseek-v4-flash-vision-exp",
+		"deepseek-coder",
+		"deepseek-v4-pro",
+		"deepseek-v4-pro-0813":
 		return true
-	case "deepseek-v4-pro", "deepseek-v4-pro-0813":
-		return false
 	default:
 		return false
 	}
+}
+
+func isDeepSeekV4ProCodexModel(model string) bool {
+	switch strings.ToLower(strings.TrimSpace(model)) {
+	case "deepseek-v4-pro", "deepseek-v4-pro-0813":
+		return true
+	default:
+		return false
+	}
+}
+
+func isDeepSeekCodexImageCapabilityAccount(account *Account) bool {
+	if account == nil {
+		return false
+	}
+	return (account.Platform == PlatformDeepseek && account.Type == AccountTypeAPIKey) ||
+		(account.Platform == PlatformOpenAI && account.IsOpenAIApiKey())
 }
 
 func isOfficialOpenAICodexAccount(account *Account) bool {
