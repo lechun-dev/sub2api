@@ -630,6 +630,177 @@ func TestAstraCodexToolCapabilitiesFollowAPIKeyAlias(t *testing.T) {
 	}
 }
 
+func TestAPIKeyCodexImageCapabilitiesFollowModelMapping(t *testing.T) {
+	t.Parallel()
+
+	newAccount := func(mapping map[string]any, metadata map[string]UpstreamModelMetadata) *Account {
+		account := newCodexModelsAPIKeyTestAccount("https://relay.example/v1")
+		account.Credentials["model_mapping"] = mapping
+		if len(metadata) > 0 {
+			account.SetUpstreamModelMetadataSnapshot(UpstreamModelMetadataSnapshot{Models: metadata})
+		}
+		return account
+	}
+
+	for _, tt := range []struct {
+		name     string
+		account  *Account
+		expected []any
+	}{
+		{
+			name: "mapped vision model advertises image input",
+			account: newAccount(map[string]any{
+				"deepseek-v4-flash": "deepseek-v4-flash-vision-exp",
+			}, nil),
+			expected: []any{"text", "image"},
+		},
+		{
+			name:     "unmapped text model stays text only",
+			account:  newAccount(nil, nil),
+			expected: []any{"text"},
+		},
+		{
+			name: "explicit upstream text metadata stays text only",
+			account: newAccount(map[string]any{
+				"deepseek-v4-flash": "deepseek-v4-flash-vision-exp",
+			}, map[string]UpstreamModelMetadata{
+				"deepseek-v4-flash-vision-exp": {
+					ID:              "deepseek-v4-flash-vision-exp",
+					InputModalities: []string{"text"},
+				},
+			}),
+			expected: []any{"text"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			for _, source := range []string{
+				`{"data":[{"id":"deepseek-v4-flash"}]}`,
+				`{"models":[{"slug":"deepseek-v4-flash"}]}`,
+			} {
+				converted := convertOpenAIModelListToCodexManifestForAccount([]byte(source), tt.account)
+				body, err := completeAPIKeyCodexModelsManifestMetadata(converted, true, tt.account)
+				require.NoError(t, err)
+				models := decodeCodexManifestModels(t, body)
+				require.Len(t, models, 1)
+				require.Equal(t, "deepseek-v4-flash", models[0]["slug"])
+				require.Equal(t, tt.expected, models[0]["input_modalities"])
+			}
+		})
+	}
+}
+
+func TestAPIKeyCodexImageCapabilitiesReadNestedInputModalities(t *testing.T) {
+	t.Parallel()
+
+	account := newCodexModelsAPIKeyTestAccount("https://relay.example/v1")
+	source := []byte(`{"data":[{"id":"relay-vision-model","modalities":{"input":["text","image"]}}]}`)
+	body, err := completeAPIKeyCodexModelsManifestMetadata(
+		convertOpenAIModelListToCodexManifestForAccount(source, account),
+		true,
+		account,
+	)
+	require.NoError(t, err)
+	models := decodeCodexManifestModels(t, body)
+	require.Len(t, models, 1)
+	require.Equal(t, []any{"text", "image"}, models[0]["input_modalities"])
+}
+
+func TestAPIKeyCodexExplicitTextModalitiesSuppressVisionNameFallback(t *testing.T) {
+	t.Parallel()
+
+	account := newCodexModelsAPIKeyTestAccount("https://relay.example/v1")
+	source := []byte(`{"data":[{"id":"gpt-4o","modalities":{"input":["text"]}}]}`)
+	body, err := completeAPIKeyCodexModelsManifestMetadata(
+		convertOpenAIModelListToCodexManifestForAccount(source, account),
+		true,
+		account,
+	)
+	require.NoError(t, err)
+	models := decodeCodexManifestModels(t, body)
+	require.Len(t, models, 1)
+	require.Equal(t, []any{"text"}, models[0]["input_modalities"])
+}
+
+func TestAPIKeyCodexLiveTextModalitiesOverrideSyncedImageMetadata(t *testing.T) {
+	t.Parallel()
+
+	account := newCodexModelsAPIKeyTestAccount("https://relay.example/v1")
+	account.SetUpstreamModelMetadataSnapshot(UpstreamModelMetadataSnapshot{Models: map[string]UpstreamModelMetadata{
+		"relay-model": {ID: "relay-model", InputModalities: []string{"text", "image"}},
+	}})
+	source := []byte(`{"data":[{"id":"relay-model","input_modalities":["text"]}]}`)
+	explicit := extractCodexExplicitInputModalities(source)
+	body, err := applySyncedAPIKeyCodexModelMetadataWithExplicitInputModalities(
+		convertOpenAIModelListToCodexManifestForAccount(source, account),
+		account,
+		true,
+		explicit,
+	)
+	require.NoError(t, err)
+	body, err = completeAPIKeyCodexModelsManifestMetadataWithExplicitInputModalities(body, true, account, explicit)
+	require.NoError(t, err)
+	models := decodeCodexManifestModels(t, body)
+	require.Len(t, models, 1)
+	require.Equal(t, []any{"text"}, models[0]["input_modalities"])
+}
+
+func TestAPIKeyCodexLiveImageModalitiesOverrideSyncedTextMetadata(t *testing.T) {
+	t.Parallel()
+
+	account := newCodexModelsAPIKeyTestAccount("https://relay.example/v1")
+	account.SetUpstreamModelMetadataSnapshot(UpstreamModelMetadataSnapshot{Models: map[string]UpstreamModelMetadata{
+		"relay-model": {ID: "relay-model", InputModalities: []string{"text"}},
+	}})
+	source := []byte(`{"data":[{"id":"relay-model","input_modalities":["text","image"]}]}`)
+	explicit := extractCodexExplicitInputModalities(source)
+	body, err := applySyncedAPIKeyCodexModelMetadataWithExplicitInputModalities(
+		convertOpenAIModelListToCodexManifestForAccount(source, account),
+		account,
+		true,
+		explicit,
+	)
+	require.NoError(t, err)
+	body, err = completeAPIKeyCodexModelsManifestMetadataWithExplicitInputModalities(body, true, account, explicit)
+	require.NoError(t, err)
+	models := decodeCodexManifestModels(t, body)
+	require.Len(t, models, 1)
+	require.Equal(t, []any{"text", "image"}, models[0]["input_modalities"])
+}
+
+func TestAPIKeyCodexImageCapabilitiesReadBareModelArray(t *testing.T) {
+	t.Parallel()
+
+	account := newCodexModelsAPIKeyTestAccount("https://relay.example/v1")
+	source := []byte(`[{"id":"relay-vision-model","input_modalities":["text","image"]}]`)
+	body, err := completeAPIKeyCodexModelsManifestMetadata(
+		convertOpenAIModelListToCodexManifestForAccount(source, account),
+		true,
+		account,
+	)
+	require.NoError(t, err)
+	models := decodeCodexManifestModels(t, body)
+	require.Len(t, models, 1)
+	require.Equal(t, []any{"text", "image"}, models[0]["input_modalities"])
+}
+
+func TestCompleteAPIKeyCodexModelsManifestPrefersUpstreamSourceModalities(t *testing.T) {
+	t.Parallel()
+
+	account := newCodexModelsAPIKeyTestAccount("https://relay.example/v1")
+	manifest := &OpenAIModelsResponse{
+		Body:                         []byte(`{"models":[{"slug":"relay-vision-model","input_modalities":["text"]}]}`),
+		upstreamSourceBody:           []byte(`{"data":[{"id":"relay-vision-model","input_modalities":["text","image"]}]}`),
+		convertedFromOpenAIModelList: true,
+	}
+	service := &OpenAIGatewayService{}
+	require.NoError(t, service.CompleteAPIKeyCodexModelsManifestForClient(manifest, account))
+
+	models := decodeCodexManifestModels(t, manifest.Body)
+	require.Len(t, models, 1)
+	require.Equal(t, []any{"text", "image"}, models[0]["input_modalities"])
+}
+
 func TestAstraCodexToolCapabilitiesKeepAPIKeyResponsesLiteGuard(t *testing.T) {
 	account := Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{
 		"base_url": "https://relay.example/v1", "model_mapping": map[string]any{"my-astra": "gpt-6-astra"},

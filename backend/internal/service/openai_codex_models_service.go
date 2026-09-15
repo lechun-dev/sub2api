@@ -1074,9 +1074,6 @@ func groupCodexModelSupportsImageInput(
 			return false
 		}
 	}
-	if platform != PlatformOpenAI && platform != PlatformGrok && platform != PlatformDeepseek {
-		return false
-	}
 
 	candidates := 0
 	for i := range accounts {
@@ -1208,28 +1205,59 @@ func codexExplicitModelMappingClaims(account Account, modelID string) bool {
 	return mapped != ""
 }
 
+// resolveCodexModelInputModalities returns the input modalities explicitly
+// declared by the account's synced upstream snapshot. The boolean reports
+// whether a usable declaration exists; when it is false the caller should fall
+// back to the model-name heuristics.
+func resolveCodexModelInputModalities(account *Account, upstreamModel string) ([]string, bool) {
+	if account == nil {
+		return nil, false
+	}
+	metadata, ok := account.GetUpstreamModelMetadata(upstreamModel)
+	if !ok {
+		return nil, false
+	}
+	modalities := normalizeCodexInputModalities(metadata.InputModalities)
+	if len(modalities) == 0 {
+		return nil, false
+	}
+	// Official GPT-6 Astra metadata briefly shipped with a stale text-only
+	// modality list. Keep explicit provider metadata authoritative for
+	// compatible hosts, but repair that stale official snapshot at the
+	// capability boundary.
+	if isOpenAIGPT6AstraModel(upstreamModel) && isOfficialOpenAICodexAccount(account) {
+		return []string{"text", "image"}, true
+	}
+	return modalities, true
+}
+
 func accountCodexModelSupportsImageInput(account *Account, upstreamModel string) bool {
 	if account == nil {
 		return false
 	}
-	switch account.Platform {
-	case PlatformOpenAI, PlatformDeepseek:
-		if metadata, ok := account.GetUpstreamModelMetadata(upstreamModel); ok {
-			if modalities := normalizeCodexInputModalities(metadata.InputModalities); len(modalities) > 0 {
-				// Official GPT-6 Astra metadata briefly shipped with a stale
-				// text-only modality list. Keep explicit provider metadata
-				// authoritative for compatible hosts, but repair that stale
-				// official snapshot at the capability boundary.
-				if isOpenAIGPT6AstraModel(upstreamModel) && isOfficialOpenAICodexAccount(account) {
-					return true
-				}
-				return stringSliceContains(modalities, "image")
-			}
-		}
+	// Explicit upstream metadata wins for every platform: a relay may declare
+	// image support for a model whose name carries no vision hint, and a
+	// text-only declaration must never be upgraded by a name heuristic.
+	if modalities, ok := resolveCodexModelInputModalities(account, upstreamModel); ok {
+		return stringSliceContains(modalities, "image")
+	}
+	return codexModelNameFallbackSupportsImageInput(account, upstreamModel)
+}
+
+// codexModelNameFallbackSupportsImageInput applies the built-in vision model
+// name heuristics used only when the upstream publishes no modality metadata.
+func codexModelNameFallbackSupportsImageInput(account *Account, upstreamModel string) bool {
+	if account == nil {
+		return false
+	}
+	if account.Platform == PlatformOpenAI || account.Platform == PlatformDeepseek {
 		if strings.EqualFold(strings.TrimSpace(upstreamModel), "deepseek-v4-flash-vision-exp") {
 			return account.Type == AccountTypeAPIKey
 		}
-		if account.Platform != PlatformOpenAI || !isOpenAICodexImageInputModel(upstreamModel) {
+	}
+	switch account.Platform {
+	case PlatformOpenAI:
+		if !isOpenAICodexImageInputModel(upstreamModel) {
 			return false
 		}
 		if account.IsOpenAIOAuth() {
@@ -1954,10 +1982,11 @@ func (s *OpenAIGatewayService) fetchCodexModelsManifestUpstream(ctx context.Cont
 		}
 	}
 	if request.useAPIKeyUpstream {
-		body, err = completeAPIKeyCodexModelsManifestMetadata(
+		body, err = completeAPIKeyCodexModelsManifestMetadataWithExplicitInputModalities(
 			body,
 			false,
 			request.credentialAccount,
+			extractCodexExplicitInputModalities(upstreamBody),
 		)
 		if err != nil {
 			return nil, &codexModelsManifestUpstreamError{
@@ -2078,40 +2107,52 @@ func adjustAPIKeyCodexModelsManifest(body []byte, account *Account) ([]byte, err
 }
 
 // convertOpenAIModelListToCodexManifest rewrites a standard OpenAI
-// GET /v1/models response ({"object":"list","data":[{"id":...},...]}) into the
-// same complete Codex manifest used by locally generated custom-provider
-// catalogs. Bodies that already carry a top-level models field, are not the
-// standard list shape, or yield no usable model IDs are returned unchanged so
-// envelope validation reports the original payload.
+// GET /v1/models response ({"object":"list","data":[{"id":...},...]}) or a
+// bare entry array into the same complete Codex manifest used by locally
+// generated custom-provider catalogs. Bodies that already carry a top-level
+// models field, are not a list shape, or yield no usable model IDs are returned
+// unchanged so envelope validation reports the original payload.
 func convertOpenAIModelListToCodexManifest(body []byte) []byte {
 	return convertOpenAIModelListToCodexManifestForAccount(body, nil)
 }
 
 func convertOpenAIModelListToCodexManifestForAccount(body []byte, account *Account) []byte {
 	var envelope map[string]json.RawMessage
-	if err := json.Unmarshal(body, &envelope); err != nil || envelope == nil {
-		return body
+	if err := json.Unmarshal(body, &envelope); err == nil && envelope != nil {
+		if _, ok := envelope["models"]; ok {
+			return body
+		}
+		data, ok := envelope["data"]
+		if !ok {
+			return body
+		}
+		return convertCodexModelListEntriesToManifest(body, data, account)
 	}
-	if _, ok := envelope["models"]; ok {
-		return body
+	// A bare JSON array is also a valid model list shape.
+	return convertCodexModelListEntriesToManifest(body, body, account)
+}
+
+// convertCodexModelListEntriesToManifest rewrites the entry array of a model
+// list into a complete Codex manifest. The original body is returned unchanged
+// whenever the entries cannot be decoded or no usable model ID survives.
+func convertCodexModelListEntriesToManifest(original, data []byte, account *Account) []byte {
+	var rawEntries []json.RawMessage
+	if err := json.Unmarshal(data, &rawEntries); err != nil {
+		return original
 	}
-	data, ok := envelope["data"]
-	if !ok {
-		return body
-	}
-	var entries []map[string]json.RawMessage
-	if err := json.Unmarshal(data, &entries); err != nil {
-		return body
-	}
-	modelIDs := make([]string, 0, len(entries))
-	modelMetadata := make(map[string]codexModelMetadataOverride, len(entries))
-	metadataModels := make(map[string]string, len(entries))
-	for _, entry := range entries {
-		var id string
-		if err := json.Unmarshal(entry["id"], &id); err != nil {
+	// Explicit per-entry modalities published by the upstream always win over
+	// account snapshots and name heuristics.
+	entryModalities := extractCodexExplicitInputModalitiesFromEntries(rawEntries)
+	modelIDs := make([]string, 0, len(rawEntries))
+	modelMetadata := make(map[string]codexModelMetadataOverride, len(rawEntries))
+	metadataModels := make(map[string]string, len(rawEntries))
+	explicitInputModalities := make(map[string][]string, len(rawEntries))
+	for _, rawEntry := range rawEntries {
+		var entry map[string]json.RawMessage
+		if err := json.Unmarshal(rawEntry, &entry); err != nil || entry == nil {
 			continue
 		}
-		id = strings.TrimSpace(id)
+		id := codexModelEntryID(entry)
 		if id == "" {
 			continue
 		}
@@ -2123,16 +2164,31 @@ func convertOpenAIModelListToCodexManifestForAccount(body []byte, account *Accou
 		metadataModels[id] = capabilityModel
 		capabilities := accountCodexToolCapabilities(account, capabilityModel)
 		applyCodexToolCapabilities(capabilities, entry, true)
-		modelMetadata[id] = codexModelMetadataOverride{UpstreamModelMetadata: UpstreamModelMetadata{
+		metadata := codexModelMetadataOverride{UpstreamModelMetadata: UpstreamModelMetadata{
 			CodexToolCapabilities: capabilities,
 		}}
+		if modalities, ok := entryModalities[id]; ok {
+			explicitInputModalities[id] = modalities
+			metadata.InputModalities = modalities
+		}
+		modelMetadata[id] = metadata
 	}
 	if len(modelIDs) == 0 {
-		return body
+		return original
 	}
 	imageInputModels := make(map[string]bool, len(modelIDs))
 	for _, modelID := range modelIDs {
-		if accountCodexModelSupportsImageInput(account, modelID) {
+		if modalities, ok := explicitInputModalities[modelID]; ok {
+			if stringSliceContains(modalities, "image") {
+				imageInputModels[modelID] = true
+			}
+			continue
+		}
+		capabilityModel := modelID
+		if account != nil {
+			capabilityModel = account.GetMappedModel(modelID)
+		}
+		if accountCodexModelSupportsImageInput(account, capabilityModel) {
 			imageInputModels[modelID] = true
 		}
 	}
@@ -2144,9 +2200,100 @@ func convertOpenAIModelListToCodexManifestForAccount(body []byte, account *Accou
 	}
 	converted, err := buildCodexModelsManifest(modelIDs, imageInputModels, searchToolModels, metadataModels, modelMetadata)
 	if err != nil {
-		return body
+		return original
 	}
 	return converted
+}
+
+// codexModelEntryInputModalities reads the input modalities a model list entry
+// declares itself. A declaration is only usable when at least one recognized
+// text/image modality survived normalization; the boolean distinguishes an
+// explicit empty or unrelated list from an absent one so callers never treat
+// garbage metadata as provider intent.
+func codexModelEntryInputModalities(entry map[string]json.RawMessage) ([]string, bool) {
+	if entry == nil {
+		return nil, false
+	}
+	if raw, ok := entry["input_modalities"]; ok {
+		var modalities []string
+		if err := json.Unmarshal(raw, &modalities); err == nil {
+			if normalized := normalizeCodexInputModalities(modalities); len(normalized) > 0 {
+				return normalized, true
+			}
+		}
+	}
+	if raw, ok := entry["modalities"]; ok {
+		var nested struct {
+			Input []string `json:"input"`
+		}
+		if err := json.Unmarshal(raw, &nested); err != nil {
+			return nil, false
+		}
+		if normalized := normalizeCodexInputModalities(nested.Input); len(normalized) > 0 {
+			return normalized, true
+		}
+	}
+	return nil, false
+}
+
+// extractCodexExplicitInputModalities maps raw upstream model IDs to the input
+// modalities they publish. It accepts the standard data/models envelopes and a
+// bare array, and keys the result by the upstream slug exactly as written so
+// callers can match it against the model IDs they retain from the same body.
+func extractCodexExplicitInputModalities(body []byte) map[string][]string {
+	var entries []json.RawMessage
+	var envelope struct {
+		Data   []json.RawMessage `json:"data"`
+		Models []json.RawMessage `json:"models"`
+	}
+	if err := json.Unmarshal(body, &envelope); err == nil && (envelope.Data != nil || envelope.Models != nil) {
+		entries = make([]json.RawMessage, 0, len(envelope.Data)+len(envelope.Models))
+		entries = append(entries, envelope.Data...)
+		entries = append(entries, envelope.Models...)
+	} else if err := json.Unmarshal(body, &entries); err != nil {
+		return nil
+	}
+	return extractCodexExplicitInputModalitiesFromEntries(entries)
+}
+
+// extractCodexExplicitInputModalitiesFromEntries is the shared implementation
+// for callers that already hold a decoded entry list, such as the model list
+// converter operating on the upstream data array.
+func extractCodexExplicitInputModalitiesFromEntries(entries []json.RawMessage) map[string][]string {
+	modalities := make(map[string][]string, len(entries))
+	for _, rawEntry := range entries {
+		var entry map[string]json.RawMessage
+		if err := json.Unmarshal(rawEntry, &entry); err != nil || entry == nil {
+			continue
+		}
+		key := codexModelEntryID(entry)
+		if key == "" {
+			continue
+		}
+		if normalized, ok := codexModelEntryInputModalities(entry); ok {
+			modalities[key] = normalized
+		}
+	}
+	if len(modalities) == 0 {
+		return nil
+	}
+	return modalities
+}
+
+// codexModelEntryID reads the identifier a model list entry is published
+// under. OpenAI-compatible endpoints use id, while Codex-native manifests use
+// slug; both are accepted so the same helper works for either shape.
+func codexModelEntryID(entry map[string]json.RawMessage) string {
+	for _, field := range []string{"id", "slug"} {
+		var value string
+		if err := json.Unmarshal(entry[field], &value); err != nil {
+			continue
+		}
+		if value = strings.TrimSpace(value); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 // completeAPIKeyCodexModelsManifestMetadata fills fields omitted by standard
@@ -2159,22 +2306,32 @@ func (s *OpenAIGatewayService) CompleteAPIKeyCodexModelsManifestForClient(manife
 	if manifest == nil || account == nil || !account.IsOpenAIApiKey() || manifest.NotModified || len(manifest.Body) == 0 {
 		return nil
 	}
+	var explicit map[string][]string
 	body := manifest.Body
 	if len(manifest.upstreamSourceBody) > 0 {
+		explicit = extractCodexExplicitInputModalities(manifest.upstreamSourceBody)
 		body = append([]byte(nil), manifest.upstreamSourceBody...)
 		if manifest.convertedFromOpenAIModelList {
 			body = convertOpenAIModelListToCodexManifestForAccount(body, account)
 		}
+	} else {
+		explicit = extractCodexExplicitInputModalities(manifest.Body)
 	}
 	var err error
-	body, err = applySyncedAPIKeyCodexModelMetadata(body, account, manifest.convertedFromOpenAIModelList)
+	body, err = applySyncedAPIKeyCodexModelMetadataWithExplicitInputModalities(
+		body,
+		account,
+		manifest.convertedFromOpenAIModelList,
+		explicit,
+	)
 	if err != nil {
 		return err
 	}
-	body, err = completeAPIKeyCodexModelsManifestMetadata(
+	body, err = completeAPIKeyCodexModelsManifestMetadataWithExplicitInputModalities(
 		body,
 		true,
 		account,
+		explicit,
 	)
 	if err != nil {
 		return err
@@ -2189,6 +2346,15 @@ func (s *OpenAIGatewayService) CompleteAPIKeyCodexModelsManifestForClient(manife
 }
 
 func applySyncedAPIKeyCodexModelMetadata(body []byte, account *Account, overwriteLocalDefaults bool) ([]byte, error) {
+	return applySyncedAPIKeyCodexModelMetadataWithExplicitInputModalities(body, account, overwriteLocalDefaults, nil)
+}
+
+func applySyncedAPIKeyCodexModelMetadataWithExplicitInputModalities(
+	body []byte,
+	account *Account,
+	overwriteLocalDefaults bool,
+	explicitInputModalities map[string][]string,
+) ([]byte, error) {
 	snapshot := account.GetUpstreamModelMetadataSnapshot()
 	if snapshot == nil || len(snapshot.Models) == 0 {
 		return body, nil
@@ -2215,6 +2381,10 @@ func applySyncedAPIKeyCodexModelMetadata(body []byte, account *Account, overwrit
 		}
 		slug = strings.TrimSpace(slug)
 		lookupModel := account.GetMappedModel(slug)
+		// The upstream model list is the live declaration. When it publishes
+		// modalities for this slug, a previously synced snapshot must not
+		// overwrite them; every other synced field still applies.
+		_, hasExplicitInputModalities := explicitInputModalities[slug]
 		metadata, ok := snapshot.Models[lookupModel]
 		if !ok {
 			continue
@@ -2248,7 +2418,7 @@ func applySyncedAPIKeyCodexModelMetadata(body []byte, account *Account, overwrit
 		if metadata.Reasoning != nil {
 			fields = append(fields, "default_reasoning_level", "supported_reasoning_levels")
 		}
-		if len(normalizeCodexInputModalities(metadata.InputModalities)) > 0 {
+		if !hasExplicitInputModalities && len(normalizeCodexInputModalities(metadata.InputModalities)) > 0 {
 			fields = append(fields, "input_modalities")
 		}
 		if metadata.ContextWindow > 0 {
@@ -2300,6 +2470,15 @@ func applySyncedAPIKeyCodexModelMetadata(body []byte, account *Account, overwrit
 }
 
 func completeAPIKeyCodexModelsManifestMetadata(body []byte, completeAll bool, account *Account) ([]byte, error) {
+	return completeAPIKeyCodexModelsManifestMetadataWithExplicitInputModalities(body, completeAll, account, nil)
+}
+
+func completeAPIKeyCodexModelsManifestMetadataWithExplicitInputModalities(
+	body []byte,
+	completeAll bool,
+	account *Account,
+	explicitInputModalities map[string][]string,
+) ([]byte, error) {
 	var envelope map[string]json.RawMessage
 	if err := json.Unmarshal(body, &envelope); err != nil {
 		return nil, fmt.Errorf("decode JSON object: %w", err)
@@ -2343,15 +2522,23 @@ func completeAPIKeyCodexModelsManifestMetadata(body []byte, completeAll bool, ac
 			continue
 		}
 
+		explicitModalities, hasExplicitModalities := explicitInputModalities[slug]
 		completeDescriptor := completeAll || isDeepSeekCodexModel(slug)
-		forceOfficialImage := officialOpenAI && isOpenAICodexImageInputModel(slug)
-		if !completeDescriptor && !forceOfficialImage {
+		// Only model-name heuristics get suppressed by a provider declaration.
+		forceOfficialImage := !hasExplicitModalities && officialOpenAI && isOpenAICodexImageInputModel(slug)
+		if !completeDescriptor && !forceOfficialImage && !hasExplicitModalities {
 			continue
 		}
 
 		descriptor := newConfiguredCodexModelDescriptor(slug)
 		descriptor.SupportsSearchTool = shouldForwardOpenAIResponsesViaRawChatCompletions(account)
-		if accountCodexModelSupportsImageInput(account, slug) {
+		capabilityModel := slug
+		if account != nil {
+			capabilityModel = account.GetMappedModel(slug)
+		}
+		if hasExplicitModalities {
+			descriptor.InputModalities = explicitModalities
+		} else if accountCodexModelSupportsImageInput(account, capabilityModel) {
 			descriptor.InputModalities = []string{"text", "image"}
 		}
 		if forceOfficialImage {
@@ -2367,10 +2554,6 @@ func completeAPIKeyCodexModelsManifestMetadata(body []byte, completeAll bool, ac
 			return nil, fmt.Errorf("decode default model %q: %w", slug, err)
 		}
 
-		capabilityModel := slug
-		if account != nil {
-			capabilityModel = account.GetMappedModel(slug)
-		}
 		capabilities := accountCodexToolCapabilities(account, capabilityModel)
 		modelChanged := applyCodexToolCapabilities(model, capabilities, false)
 		if completeDescriptor {
@@ -2379,6 +2562,27 @@ func completeAPIKeyCodexModelsManifestMetadata(body []byte, completeAll bool, ac
 				return nil, fmt.Errorf("complete model %q: %w", slug, err)
 			}
 			modelChanged = merged || modelChanged
+		}
+		if hasExplicitModalities {
+			// The upstream list is the decision point for vision support, so
+			// rewrite both the modality list and the detail flag even when the
+			// entry already carried stale values from an earlier sync.
+			modalities, err := json.Marshal(explicitModalities)
+			if err != nil {
+				return nil, fmt.Errorf("encode input modalities for model %q: %w", slug, err)
+			}
+			if !bytes.Equal(bytes.TrimSpace(model["input_modalities"]), modalities) {
+				model["input_modalities"] = modalities
+				modelChanged = true
+			}
+			imageDetailOriginal := json.RawMessage("false")
+			if stringSliceContains(explicitModalities, "image") && officialOpenAI {
+				imageDetailOriginal = json.RawMessage("true")
+			}
+			if !bytes.Equal(bytes.TrimSpace(model["supports_image_detail_original"]), imageDetailOriginal) {
+				model["supports_image_detail_original"] = imageDetailOriginal
+				modelChanged = true
+			}
 		}
 		if forceOfficialImage {
 			modalities, err := json.Marshal([]string{"text", "image"})
