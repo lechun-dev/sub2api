@@ -1,0 +1,39 @@
+name: Deploy to Openclaw
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: deploy-sub2api-openclaw
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy on openclaw
+    runs-on:
+      - self-hosted
+      - openclaw
+      - sub2api
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy published image
+        shell: bash
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}:latest"
+          /opt/sub2api/deploy/deploy-from-image.sh "$IMAGE" "$GITHUB_WORKSPACE"
