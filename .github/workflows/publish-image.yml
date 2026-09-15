@@ -31,8 +31,10 @@ jobs:
           TAG="${{ inputs.tag || github.ref_name }}"
           TAG="${TAG#v}"
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          SOURCE_SHA="$(git rev-parse HEAD)"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "source_sha=${SOURCE_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -58,6 +60,7 @@ jobs:
             VERSION=${{ steps.release.outputs.tag }}
           tags: |
             ${{ steps.release.outputs.image }}:${{ steps.release.outputs.tag }}
+            ${{ steps.release.outputs.image }}:sha-${{ steps.release.outputs.source_sha }}
             ${{ steps.release.outputs.image }}:latest
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
