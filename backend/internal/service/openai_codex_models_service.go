@@ -1250,9 +1250,10 @@ func codexModelNameFallbackSupportsImageInput(account *Account, upstreamModel st
 	if account == nil {
 		return false
 	}
-	if account.Platform == PlatformOpenAI || account.Platform == PlatformDeepseek {
-		if strings.EqualFold(strings.TrimSpace(upstreamModel), "deepseek-v4-flash-vision-exp") {
-			return account.Type == AccountTypeAPIKey
+	if (account.Platform == PlatformDeepseek && account.Type == AccountTypeAPIKey) ||
+		(account.Platform == PlatformOpenAI && account.IsOpenAIApiKey()) {
+		if deepseekModelNameSupportsImageInput(upstreamModel) {
+			return true
 		}
 	}
 	switch account.Platform {
@@ -1275,6 +1276,23 @@ func codexModelNameFallbackSupportsImageInput(account *Account, upstreamModel st
 		}
 		canonical := xai.ResolveGrokTextResponsesModelID(upstreamModel)
 		return isGrokCodexImageInputModel(canonical)
+	default:
+		return false
+	}
+}
+
+// deepseekModelNameSupportsImageInput reports image input support for DeepSeek
+// account names when the upstream publishes no modality metadata. DeepSeek
+// serves deepseek-coder with the same multimodal flash route, but it is not in
+// deepseekServableModels because model_mapping is required for that alias. The
+// text-only and unknown lists stay explicit so a future DeepSeek model is not
+// upgraded to image input by a substring heuristic.
+func deepseekModelNameSupportsImageInput(model string) bool {
+	switch strings.ToLower(strings.TrimSpace(model)) {
+	case "deepseek-flash", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp", "deepseek-coder":
+		return true
+	case "deepseek-v4-pro", "deepseek-v4-pro-0813":
+		return false
 	default:
 		return false
 	}

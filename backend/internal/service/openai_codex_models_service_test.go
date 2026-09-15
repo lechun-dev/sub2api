@@ -824,8 +824,23 @@ func TestBuildCodexModelsManifestForGroupUsesDeepSeekVisionCapabilities(t *testi
 			modalities: []any{"text", "image"},
 		},
 		{
-			name: "text-only DeepSeek Flash", platform: PlatformDeepseek,
+			name: "DeepSeek Flash supports image input", platform: PlatformDeepseek,
+			accounts:   []Account{newAccount(1, PlatformDeepseek, "deepseek-flash", nil)},
+			modalities: []any{"text", "image"},
+		},
+		{
+			name: "DeepSeek V4 Flash supports image input", platform: PlatformDeepseek,
 			accounts:   []Account{newAccount(1, PlatformDeepseek, "deepseek-v4-flash", nil)},
+			modalities: []any{"text", "image"},
+		},
+		{
+			name: "DeepSeek Coder alias supports image input", platform: PlatformDeepseek,
+			accounts:   []Account{newAccount(1, PlatformDeepseek, "deepseek-coder", nil)},
+			modalities: []any{"text", "image"},
+		},
+		{
+			name: "DeepSeek V4 Pro stays text only", platform: PlatformDeepseek,
+			accounts:   []Account{newAccount(1, PlatformDeepseek, "deepseek-v4-pro", nil)},
 			modalities: []any{"text"},
 		},
 		{
@@ -834,12 +849,22 @@ func TestBuildCodexModelsManifestForGroupUsesDeepSeekVisionCapabilities(t *testi
 			modalities: []any{"text"},
 		},
 		{
-			name: "mixed vision and text-only alias", platform: PlatformDeepseek,
+			name: "mixed multimodal alias stays multimodal", platform: PlatformDeepseek,
 			accounts: []Account{
 				newAccount(1, PlatformDeepseek, visionModel, nil),
 				newAccount(2, PlatformDeepseek, "deepseek-v4-flash", nil),
 			},
+			modalities: []any{"text", "image"},
+		},
+		{
+			name: "explicit upstream text metadata wins for DeepSeek Flash", platform: PlatformDeepseek,
+			accounts:   []Account{newAccount(1, PlatformDeepseek, "deepseek-flash", []string{"text"})},
 			modalities: []any{"text"},
+		},
+		{
+			name: "DeepSeek Coder image support shared by OpenAI-compatible account", platform: PlatformOpenAI,
+			accounts:   []Account{newAccount(1, PlatformOpenAI, "deepseek-coder", nil)},
+			modalities: []any{"text", "image"},
 		},
 	}
 

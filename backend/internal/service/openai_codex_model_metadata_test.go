@@ -642,21 +642,50 @@ func TestAPIKeyCodexImageCapabilitiesFollowModelMapping(t *testing.T) {
 		return account
 	}
 
+	imageAliases := []string{
+		"deepseek-flash",
+		"deepseek-v4-flash",
+		"deepseek-v4-flash-vision-exp",
+		"deepseek-coder",
+	}
+	for _, model := range imageAliases {
+		for _, source := range []string{
+			`{"data":[{"id":"deepseek-v4-flash"}]}`,
+			`{"models":[{"slug":"deepseek-v4-flash"}]}`,
+		} {
+			account := newAccount(map[string]any{"deepseek-v4-flash": model}, nil)
+			converted := convertOpenAIModelListToCodexManifestForAccount([]byte(source), account)
+			body, err := completeAPIKeyCodexModelsManifestMetadata(converted, true, account)
+			require.NoError(t, err)
+			models := decodeCodexManifestModels(t, body)
+			require.Len(t, models, 1)
+			require.Equal(t, "deepseek-v4-flash", models[0]["slug"])
+			require.Equal(t, []any{"text", "image"}, models[0]["input_modalities"], "mapped model %s", model)
+		}
+	}
+
 	for _, tt := range []struct {
 		name     string
 		account  *Account
 		expected []any
 	}{
 		{
-			name: "mapped vision model advertises image input",
+			name: "mapped text-only model stays text only",
 			account: newAccount(map[string]any{
-				"deepseek-v4-flash": "deepseek-v4-flash-vision-exp",
+				"deepseek-v4-flash": "deepseek-v4-pro",
 			}, nil),
+			expected: []any{"text"},
+		},
+		{
+			name:     "unmapped image model advertises image input",
+			account:  newAccount(nil, nil),
 			expected: []any{"text", "image"},
 		},
 		{
-			name:     "unmapped text model stays text only",
-			account:  newAccount(nil, nil),
+			name: "unknown model stays text only",
+			account: newAccount(map[string]any{
+				"deepseek-v4-flash": "deepseek-future-model",
+			}, nil),
 			expected: []any{"text"},
 		},
 		{
