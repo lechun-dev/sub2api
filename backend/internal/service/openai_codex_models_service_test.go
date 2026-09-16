@@ -854,9 +854,9 @@ func TestBuildCodexModelsManifestForGroupUsesDeepSeekVisionCapabilities(t *testi
 			modalities: []any{"text", "image"},
 		},
 		{
-			name: "explicit text-only metadata", platform: PlatformDeepseek,
-			accounts:   []Account{newAccount(1, PlatformDeepseek, visionModel, []string{"text"})},
-			modalities: []any{"text"},
+			name: "stale text-only DeepSeek Flash snapshot advertises image input", platform: PlatformDeepseek,
+			accounts:   []Account{newAccount(1, PlatformDeepseek, "deepseek-flash", []string{"text"})},
+			modalities: []any{"text", "image"},
 		},
 		{
 			name: "mixed multimodal alias stays multimodal", platform: PlatformDeepseek,
@@ -867,9 +867,9 @@ func TestBuildCodexModelsManifestForGroupUsesDeepSeekVisionCapabilities(t *testi
 			modalities: []any{"text", "image"},
 		},
 		{
-			name: "explicit upstream text metadata wins for DeepSeek Flash", platform: PlatformDeepseek,
-			accounts:   []Account{newAccount(1, PlatformDeepseek, "deepseek-flash", []string{"text"})},
-			modalities: []any{"text"},
+			name: "stale text-only DeepSeek vision snapshot advertises image input", platform: PlatformDeepseek,
+			accounts:   []Account{newAccount(1, PlatformDeepseek, visionModel, []string{"text"})},
+			modalities: []any{"text", "image"},
 		},
 		{
 			name: "DeepSeek Coder image support shared by OpenAI-compatible account", platform: PlatformOpenAI,

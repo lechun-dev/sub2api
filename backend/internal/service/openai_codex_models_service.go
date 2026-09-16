@@ -1221,11 +1221,12 @@ func resolveCodexModelInputModalities(account *Account, upstreamModel string) ([
 	if len(modalities) == 0 {
 		return nil, false
 	}
-	// DeepSeek V4 Pro briefly synced with a stale text-only modality list even
-	// though its Codex route accepts images. Repair that snapshot only for
-	// DeepSeek-compatible API key accounts; explicit metadata for every other
-	// model remains authoritative.
-	if isDeepSeekV4ProCodexModel(upstreamModel) && isDeepSeekCodexImageCapabilityAccount(account) {
+	// Some DeepSeek Codex model snapshots have synced with stale text-only
+	// modality lists even though their routes accept images. Repair those
+	// snapshots only for known DeepSeek image-capable models on compatible API
+	// key accounts; explicit metadata for every other model remains
+	// authoritative.
+	if deepseekModelNameSupportsImageInput(upstreamModel) && isDeepSeekCodexImageCapabilityAccount(account) {
 		return []string{"text", "image"}, true
 	}
 	// Official GPT-6 Astra metadata briefly shipped with a stale text-only
@@ -1301,15 +1302,6 @@ func deepseekModelNameSupportsImageInput(model string) bool {
 		"deepseek-coder",
 		"deepseek-v4-pro",
 		"deepseek-v4-pro-0813":
-		return true
-	default:
-		return false
-	}
-}
-
-func isDeepSeekV4ProCodexModel(model string) bool {
-	switch strings.ToLower(strings.TrimSpace(model)) {
-	case "deepseek-v4-pro", "deepseek-v4-pro-0813":
 		return true
 	default:
 		return false

@@ -1161,7 +1161,7 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 	// Get available models from account configurations for the selected group platform.
 	availableModels := h.gatewayService.GetAvailableModels(c.Request.Context(), groupID, platform)
 	if apiKey != nil && apiKey.Group != nil && apiKey.Group.ModelAllowlistEnabled() {
-		source := modelListingSource(platform, availableModels, defaultModelIDsForPlatform(platform))
+		source := modelListingSource(platform, availableModels, defaultGatewayModelIDsForPlatform(platform))
 		writeAllowlistedModelsList(c, platform, apiKey.Group.ModelAllowlist.FilterForListing(source))
 		return
 	}
@@ -1183,6 +1183,10 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 	}
 	if platform == service.PlatformGrok {
 		writeGrokModelsList(c, xai.DefaultModelIDs())
+		return
+	}
+	if platform == service.PlatformDeepseek {
+		writeModelsList(c, platform, defaultDeepSeekModelIDs())
 		return
 	}
 
@@ -1422,12 +1426,23 @@ func modelListingSource(platform string, availableModels, fallbackModels []strin
 func defaultCodexModelIDsForPlatform(platform string) []string {
 	switch platform {
 	case service.PlatformDeepseek:
-		return []string{"deepseek-v4-pro", "deepseek-v4-flash", "deepseek-flash"}
+		return defaultDeepSeekModelIDs()
 	case service.PlatformMiniMax:
 		return []string{"MiniMax-M3", "MiniMax-M2.7", "MiniMax-M2.5"}
 	default:
 		return defaultModelIDsForPlatform(platform)
 	}
+}
+
+func defaultGatewayModelIDsForPlatform(platform string) []string {
+	if platform == service.PlatformDeepseek {
+		return defaultDeepSeekModelIDs()
+	}
+	return defaultModelIDsForPlatform(platform)
+}
+
+func defaultDeepSeekModelIDs() []string {
+	return []string{"deepseek-v4-pro", "deepseek-v4-flash", "deepseek-flash"}
 }
 
 func defaultModelIDsForPlatform(platform string) []string {

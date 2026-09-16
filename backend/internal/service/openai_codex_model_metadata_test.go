@@ -703,7 +703,7 @@ func TestAPIKeyCodexImageCapabilitiesFollowModelMapping(t *testing.T) {
 			expected: []any{"text"},
 		},
 		{
-			name: "explicit upstream text metadata stays text only",
+			name: "stale text-only DeepSeek Flash vision snapshot advertises image input",
 			account: newAccount(map[string]any{
 				"deepseek-v4-flash": "deepseek-v4-flash-vision-exp",
 			}, map[string]UpstreamModelMetadata{
@@ -712,7 +712,7 @@ func TestAPIKeyCodexImageCapabilitiesFollowModelMapping(t *testing.T) {
 					InputModalities: []string{"text"},
 				},
 			}),
-			expected: []any{"text"},
+			expected: []any{"text", "image"},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
