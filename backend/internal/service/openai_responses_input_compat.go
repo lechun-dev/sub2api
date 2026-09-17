@@ -9,10 +9,11 @@ const openAIResponsesInputTextMaxChars = 10000000
 const openAIResponsesMissingToolOutputPlaceholder = "[tool output was not recorded]"
 
 type openAIResponsesToolPairingScan struct {
-	toolCallIDs     map[string]struct{}
-	referenceIDs    map[string]struct{}
-	outputIDs       map[string]struct{}
-	hasOrphanOutput bool
+	toolCallIDs          map[string]struct{}
+	referenceIDs         map[string]struct{}
+	outputIDs            map[string]struct{}
+	hasOrphanOutput      bool
+	hasMissingCallOutput bool
 }
 
 // repairOpenAIResponsesInputToolPairing repairs Responses input[] items whose
@@ -30,7 +31,7 @@ func repairOpenAIResponsesInputToolPairing(reqBody map[string]any) bool {
 	}
 	hasPreviousResponseID := strings.TrimSpace(firstNonEmptyString(reqBody["previous_response_id"])) != ""
 	scan := scanOpenAIResponsesToolPairing(input, hasPreviousResponseID)
-	if !scan.hasOrphanOutput {
+	if !scan.hasOrphanOutput && !scan.hasMissingCallOutput {
 		return false
 	}
 
@@ -73,8 +74,13 @@ func scanOpenAIResponsesToolPairing(input []any, hasPreviousResponseID bool) ope
 		if !ok {
 			continue
 		}
-		if openAIResponsesToolOutputNeedsOrphanRewrite(item, scan, hasPreviousResponseID) {
+		if !scan.hasMissingCallOutput && openAIResponsesToolCallNeedsOutputPlaceholder(item, scan.outputIDs) {
+			scan.hasMissingCallOutput = true
+		}
+		if !scan.hasOrphanOutput && openAIResponsesToolOutputNeedsOrphanRewrite(item, scan, hasPreviousResponseID) {
 			scan.hasOrphanOutput = true
+		}
+		if scan.hasMissingCallOutput && scan.hasOrphanOutput {
 			break
 		}
 	}
@@ -83,6 +89,8 @@ func scanOpenAIResponsesToolPairing(input []any, hasPreviousResponseID bool) ope
 
 func rebuildOpenAIResponsesInputToolPairing(input []any, scan openAIResponsesToolPairingScan, hasPreviousResponseID bool) []any {
 	normalized := make([]any, 0, len(input)+2)
+	missingOutputs := make([]any, 0, 2)
+	missingOutputCallIDs := make(map[string]struct{})
 	for _, rawItem := range input {
 		item, ok := rawItem.(map[string]any)
 		if !ok {
@@ -105,16 +113,21 @@ func rebuildOpenAIResponsesInputToolPairing(input []any, scan openAIResponsesToo
 			if _, hasOutput := scan.outputIDs[callID]; hasOutput {
 				continue
 			}
-			if placeholder, ok := newOpenAIResponsesMissingToolOutput(itemType, callID); ok {
-				normalized = append(normalized, placeholder)
-				scan.outputIDs[callID] = struct{}{}
+			if _, queued := missingOutputCallIDs[callID]; queued {
+				continue
 			}
+			placeholder, ok := newOpenAIResponsesMissingToolOutput(itemType, callID)
+			if !ok {
+				continue
+			}
+			missingOutputs = append(missingOutputs, placeholder)
+			missingOutputCallIDs[callID] = struct{}{}
 
 		default:
 			normalized = append(normalized, rawItem)
 		}
 	}
-	return normalized
+	return append(normalized, missingOutputs...)
 }
 
 func openAIResponsesToolOutputNeedsOrphanRewrite(item map[string]any, scan openAIResponsesToolPairingScan, hasPreviousResponseID bool) bool {
@@ -130,6 +143,19 @@ func openAIResponsesToolOutputNeedsOrphanRewrite(item map[string]any, scan openA
 		return false
 	}
 	return !hasPreviousResponseID && !hasOpenAIResponsesToolCallContext(scan.toolCallIDs, scan.referenceIDs, callID)
+}
+
+func openAIResponsesToolCallNeedsOutputPlaceholder(item map[string]any, outputIDs map[string]struct{}) bool {
+	itemType := strings.TrimSpace(firstNonEmptyString(item["type"]))
+	if openAIResponsesToolCallOutputTypeForCall(itemType) == "" {
+		return false
+	}
+	callID := strings.TrimSpace(firstNonEmptyString(item["call_id"]))
+	if callID == "" {
+		return false
+	}
+	_, hasOutput := outputIDs[callID]
+	return !hasOutput
 }
 
 func newOpenAIResponsesMissingToolOutput(callType, callID string) (map[string]any, bool) {
