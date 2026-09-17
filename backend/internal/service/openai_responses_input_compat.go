@@ -9,11 +9,14 @@ const openAIResponsesInputTextMaxChars = 10000000
 const openAIResponsesMissingToolOutputPlaceholder = "[tool output was not recorded]"
 
 type openAIResponsesToolPairingScan struct {
-	toolCallIDs          map[string]struct{}
-	referenceIDs         map[string]struct{}
-	outputIDs            map[string]struct{}
-	hasOrphanOutput      bool
-	hasMissingCallOutput bool
+	toolCallIDs             map[string]struct{}
+	referenceIDs            map[string]struct{}
+	outputIDs               map[string]struct{}
+	callIndexesByID         map[string][]int
+	outputIndexesByID       map[string][]int
+	hasOrphanOutput         bool
+	hasMissingCallOutput    bool
+	hasOutOfOrderPairOutput bool
 }
 
 // repairOpenAIResponsesInputToolPairing repairs Responses input[] items whose
@@ -31,7 +34,7 @@ func repairOpenAIResponsesInputToolPairing(reqBody map[string]any) bool {
 	}
 	hasPreviousResponseID := strings.TrimSpace(firstNonEmptyString(reqBody["previous_response_id"])) != ""
 	scan := scanOpenAIResponsesToolPairing(input, hasPreviousResponseID)
-	if !scan.hasOrphanOutput && !scan.hasMissingCallOutput {
+	if !scan.hasOrphanOutput && !scan.hasMissingCallOutput && !scan.hasOutOfOrderPairOutput {
 		return false
 	}
 
@@ -41,11 +44,13 @@ func repairOpenAIResponsesInputToolPairing(reqBody map[string]any) bool {
 
 func scanOpenAIResponsesToolPairing(input []any, hasPreviousResponseID bool) openAIResponsesToolPairingScan {
 	scan := openAIResponsesToolPairingScan{
-		toolCallIDs:  make(map[string]struct{}, len(input)),
-		referenceIDs: make(map[string]struct{}, len(input)),
-		outputIDs:    make(map[string]struct{}, len(input)),
+		toolCallIDs:       make(map[string]struct{}, len(input)),
+		referenceIDs:      make(map[string]struct{}, len(input)),
+		outputIDs:         make(map[string]struct{}, len(input)),
+		callIndexesByID:   make(map[string][]int, len(input)),
+		outputIndexesByID: make(map[string][]int, len(input)),
 	}
-	for _, rawItem := range input {
+	for index, rawItem := range input {
 		item, ok := rawItem.(map[string]any)
 		if !ok {
 			continue
@@ -61,11 +66,28 @@ func scanOpenAIResponsesToolPairing(input []any, hasPreviousResponseID bool) ope
 		case isCodexToolCallContextItemType(itemType):
 			if id := strings.TrimSpace(firstNonEmptyString(item["call_id"], item["id"])); id != "" {
 				scan.toolCallIDs[id] = struct{}{}
+				scan.callIndexesByID[id] = append(scan.callIndexesByID[id], index)
 			}
 		case isCodexToolCallOutputItemType(itemType):
 			if id := strings.TrimSpace(firstNonEmptyString(item["call_id"])); id != "" {
 				scan.outputIDs[id] = struct{}{}
+				scan.outputIndexesByID[id] = append(scan.outputIndexesByID[id], index)
 			}
+		}
+	}
+
+	for callID, outputIndexes := range scan.outputIndexesByID {
+		callIndexes := scan.callIndexesByID[callID]
+		if len(callIndexes) == 0 || len(outputIndexes) == 0 {
+			continue
+		}
+		expectedIndex := callIndexes[0] + 1
+		for _, outputIndex := range outputIndexes {
+			if outputIndex != expectedIndex {
+				scan.hasOutOfOrderPairOutput = true
+				break
+			}
+			expectedIndex++
 		}
 	}
 
@@ -90,6 +112,7 @@ func scanOpenAIResponsesToolPairing(input []any, hasPreviousResponseID bool) ope
 func rebuildOpenAIResponsesInputToolPairing(input []any, scan openAIResponsesToolPairingScan, hasPreviousResponseID bool) []any {
 	normalized := make([]any, 0, len(input)+2)
 	missingOutputCallIDs := make(map[string]struct{})
+	pairedOutputCallIDs := make(map[string]struct{})
 	for _, rawItem := range input {
 		item, ok := rawItem.(map[string]any)
 		if !ok {
@@ -101,6 +124,11 @@ func rebuildOpenAIResponsesInputToolPairing(input []any, scan openAIResponsesToo
 		callID := strings.TrimSpace(firstNonEmptyString(item["call_id"]))
 		switch {
 		case isCodexToolCallOutputItemType(itemType):
+			if _, pairedWithPresentCall := scan.callIndexesByID[callID]; pairedWithPresentCall {
+				// A physical call is authoritative. Its outputs are emitted
+				// immediately after the first matching call below.
+				continue
+			}
 			if !openAIResponsesToolOutputNeedsOrphanRewrite(item, scan, hasPreviousResponseID) {
 				normalized = append(normalized, rawItem)
 				continue
@@ -109,6 +137,15 @@ func rebuildOpenAIResponsesInputToolPairing(input []any, scan openAIResponsesToo
 
 		case isCodexToolCallContextItemType(itemType):
 			normalized = append(normalized, rawItem)
+			callID = strings.TrimSpace(firstNonEmptyString(item["call_id"], item["id"]))
+			if _, emitted := pairedOutputCallIDs[callID]; !emitted {
+				if outputIndexes := scan.outputIndexesByID[callID]; len(outputIndexes) > 0 {
+					for _, outputIndex := range outputIndexes {
+						normalized = append(normalized, input[outputIndex])
+					}
+				}
+				pairedOutputCallIDs[callID] = struct{}{}
+			}
 			if _, hasOutput := scan.outputIDs[callID]; hasOutput {
 				continue
 			}

@@ -100,7 +100,7 @@ func TestRepairOpenAIResponsesInputToolPairing(t *testing.T) {
 		require.Contains(t, got[6].(map[string]any)["content"].([]any)[0].(map[string]any)["text"], "keep this result")
 	})
 
-	t.Run("paired calls and outputs are preserved regardless of order", func(t *testing.T) {
+	t.Run("paired outputs are moved directly after their calls", func(t *testing.T) {
 		input := []any{
 			map[string]any{"type": "tool_search_output", "call_id": "search_1", "output": "first"},
 			map[string]any{"type": "tool_search_call", "id": "search_1", "query": "docs"},
@@ -113,8 +113,54 @@ func TestRepairOpenAIResponsesInputToolPairing(t *testing.T) {
 		}
 		reqBody := map[string]any{"input": input}
 
+		require.True(t, repairOpenAIResponsesInputToolPairing(reqBody))
+		require.Equal(t, []any{
+			input[1], input[0],
+			input[3], input[2],
+			input[5], input[4],
+			input[7], input[6],
+		}, reqBody["input"])
+
+		first := reqBody["input"]
 		require.False(t, repairOpenAIResponsesInputToolPairing(reqBody))
-		require.Equal(t, input, reqBody["input"])
+		require.Equal(t, first, reqBody["input"])
+	})
+
+	t.Run("batched outputs are moved after each call", func(t *testing.T) {
+		input := []any{
+			map[string]any{"type": "function_call", "call_id": "call_1", "name": "first", "arguments": "{}"},
+			map[string]any{"type": "function_call", "call_id": "call_2", "name": "second", "arguments": "{}"},
+			map[string]any{"type": "function_call_output", "call_id": "call_1", "output": "first result"},
+			map[string]any{"type": "function_call_output", "call_id": "call_2", "output": "second result"},
+		}
+		reqBody := map[string]any{"input": input}
+
+		require.True(t, repairOpenAIResponsesInputToolPairing(reqBody))
+		require.Equal(t, []any{
+			input[0], input[2],
+			input[1], input[3],
+		}, reqBody["input"])
+
+		first := reqBody["input"]
+		require.False(t, repairOpenAIResponsesInputToolPairing(reqBody))
+		require.Equal(t, first, reqBody["input"])
+	})
+
+	t.Run("delayed output is paired before a missing output placeholder", func(t *testing.T) {
+		input := []any{
+			map[string]any{"type": "function_call", "call_id": "call_1", "name": "first", "arguments": "{}"},
+			map[string]any{"type": "function_call", "call_id": "call_2", "name": "second", "arguments": "{}"},
+			map[string]any{"type": "function_call_output", "call_id": "call_1", "output": "first result"},
+		}
+		reqBody := map[string]any{"input": input}
+
+		require.True(t, repairOpenAIResponsesInputToolPairing(reqBody))
+		require.Equal(t, []any{
+			input[0], input[2],
+			input[1], map[string]any{
+				"type": "function_call_output", "call_id": "call_2", "output": openAIResponsesMissingToolOutputPlaceholder,
+			},
+		}, reqBody["input"])
 	})
 
 	t.Run("item reference proves call context", func(t *testing.T) {
@@ -232,6 +278,47 @@ func TestWebSocketCompatibilityPreservesNamedDelegation(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestWebSocketCompatibilityReordersBatchedToolOutputs(t *testing.T) {
+	reqBody := map[string]any{
+		"type":  "response.create",
+		"model": "gpt-5.5",
+		"input": []any{
+			map[string]any{"type": "function_call", "call_id": "call_1", "name": "first", "arguments": "{}"},
+			map[string]any{"type": "function_call", "call_id": "call_2", "name": "second", "arguments": "{}"},
+			map[string]any{"type": "function_call_output", "call_id": "call_1", "output": "first result"},
+			map[string]any{"type": "function_call_output", "call_id": "call_2", "output": "second result"},
+		},
+	}
+	body, err := json.Marshal(reqBody)
+	require.NoError(t, err)
+	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+
+	normalized, changed, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(body, account, false)
+	require.NoError(t, err)
+	require.True(t, changed)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(normalized, &got))
+	input, ok := got["input"].([]any)
+	require.True(t, ok)
+	require.Len(t, input, 4)
+	require.Equal(t, "function_call", input[0].(map[string]any)["type"])
+	require.Equal(t, "call_1", input[0].(map[string]any)["call_id"])
+	require.Equal(t, "function_call_output", input[1].(map[string]any)["type"])
+	require.Equal(t, "call_1", input[1].(map[string]any)["call_id"])
+	require.Equal(t, "first result", input[1].(map[string]any)["output"])
+	require.Equal(t, "function_call", input[2].(map[string]any)["type"])
+	require.Equal(t, "call_2", input[2].(map[string]any)["call_id"])
+	require.Equal(t, "function_call_output", input[3].(map[string]any)["type"])
+	require.Equal(t, "call_2", input[3].(map[string]any)["call_id"])
+	require.Equal(t, "second result", input[3].(map[string]any)["output"])
+
+	again, changed, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(normalized, account, false)
+	require.NoError(t, err)
+	require.False(t, changed)
+	require.JSONEq(t, string(normalized), string(again))
 }
 
 func TestOpenAIResponsesInputTextIsNeverSilentlyTruncated(t *testing.T) {
