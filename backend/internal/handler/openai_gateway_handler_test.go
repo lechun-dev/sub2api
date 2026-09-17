@@ -981,11 +981,10 @@ func TestOpenAIResponses_RejectsUnownedHTTPContinuation(t *testing.T) {
 func TestOpenAIResponses_FunctionCallOutputHTTPGuidanceDoesNotSuggestPreviousResponseReuse(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
+	body := []byte(`{"model":"gpt-5.1","stream":false,"input":[{"type":"function_call_output","output":"{}"}]}`)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", strings.NewReader(
-		`{"model":"gpt-5.1","stream":false,"input":[{"type":"function_call_output","output":"{}"}]}`,
-	))
+	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", strings.NewReader(string(body)))
 	c.Request.Header.Set("Content-Type", "application/json")
 
 	groupID := int64(2)

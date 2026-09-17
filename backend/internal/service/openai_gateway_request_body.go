@@ -1261,11 +1261,7 @@ func normalizeOpenAIResponsesWebSocketCompatibilityBody(body []byte, account *Ac
 		}
 		mapChanged := false
 		if needsOrphanCleanup {
-			if input, ok := reqBody["input"].([]any); ok && sanitizeOpenAIResponsesOrphanToolOutputs(
-				reqBody,
-				input,
-				strings.TrimSpace(firstNonEmptyString(reqBody["previous_response_id"])) != "",
-			) {
+			if repairOpenAIResponsesInputToolPairing(reqBody) {
 				mapChanged = true
 			}
 		}

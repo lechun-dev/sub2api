@@ -482,6 +482,10 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			zap.String("normalization", "call_output_to_user_message"),
 		)
 	}
+	if repairedBody, changed := service.RepairOpenAIResponsesInputToolPairingBytes(body); changed {
+		body = repairedBody
+		reqLog.Info("openai.responses_tool_pairing_repaired")
+	}
 
 	reqStream, ok := parseOpenAICompatibleStream(body)
 	if !ok {

@@ -12,79 +12,134 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func TestSanitizeOpenAIResponsesOrphanToolOutputs(t *testing.T) {
-	t.Run("named standalone inputs do not legitimize orphan results", func(t *testing.T) {
+func TestRepairOpenAIResponsesInputToolPairing(t *testing.T) {
+	t.Run("orphan outputs become user messages and preserve content", func(t *testing.T) {
+		reqBody := map[string]any{"input": []any{
+			map[string]any{"type": "function_call_output", "call_id": "missing_string", "output": "string result"},
+			map[string]any{"type": "tool_search_output", "call_id": "missing_parts", "output": []any{
+				map[string]any{"type": "output_text", "text": "first part"},
+				map[string]any{"type": "output_text", "text": "second part"},
+			}},
+			map[string]any{"type": "custom_tool_call_output", "call_id": "missing_object", "output": map[string]any{"ok": true}},
+		}}
+
+		require.True(t, repairOpenAIResponsesInputToolPairing(reqBody))
+		got := reqBody["input"].([]any)
+		require.Equal(t, "message", got[0].(map[string]any)["type"])
+		require.Equal(t, "user", got[0].(map[string]any)["role"])
+		require.Equal(t, "[Tool output from an earlier turn, call_id missing_string]\nstring result", got[0].(map[string]any)["content"].([]any)[0].(map[string]any)["text"])
+		require.Equal(t, "[Tool output from an earlier turn, call_id missing_parts]\nfirst part\nsecond part", got[1].(map[string]any)["content"].([]any)[0].(map[string]any)["text"])
+		require.Equal(t, "[Tool output from an earlier turn, call_id missing_object]\n{\"ok\":true}", got[2].(map[string]any)["content"].([]any)[0].(map[string]any)["text"])
+	})
+
+	t.Run("named delegation output without call id is preserved", func(t *testing.T) {
 		named := map[string]any{"type": "function_call_output", "name": "send_message_to_thread", "namespace": "codex_app", "output": "delegation"}
+		input := []any{named}
+		reqBody := map[string]any{"input": input}
+
+		require.False(t, repairOpenAIResponsesInputToolPairing(reqBody))
+		require.Equal(t, input, reqBody["input"])
+	})
+
+	t.Run("missing call outputs are preserved without an orphan output", func(t *testing.T) {
 		input := []any{
-			named,
-			map[string]any{"type": "function_call_output", "output": "missing name and call id"},
-			map[string]any{"type": "function_call_output", "name": " ", "output": "blank name"},
-			map[string]any{"type": "function_call_output", "name": "send_message_to_thread", "call_id": "missing", "output": "orphan result"},
-			map[string]any{"type": "custom_tool_call_output", "name": "apply_patch", "output": "missing call id"},
+			map[string]any{"type": "function_call", "call_id": "function_1", "name": "lookup", "arguments": "{}"},
+			map[string]any{"type": "custom_tool_call", "call_id": "custom_1", "name": "apply_patch"},
+			map[string]any{"type": "tool_search_call", "call_id": "search_1", "query": "docs"},
+			map[string]any{"type": "mcp_tool_call", "call_id": "mcp_1", "name": "read"},
 		}
 		reqBody := map[string]any{"input": input}
 
-		require.True(t, sanitizeOpenAIResponsesOrphanToolOutputs(reqBody, input, false))
-		require.Equal(t, []any{named}, reqBody["input"])
+		require.False(t, repairOpenAIResponsesInputToolPairing(reqBody))
+		require.Equal(t, input, reqBody["input"])
 	})
 
-	t.Run("preserves matches regardless of item order", func(t *testing.T) {
+	t.Run("orphan output triggers placeholders for supported call types", func(t *testing.T) {
+		reqBody := map[string]any{"input": []any{
+			map[string]any{"type": "function_call", "call_id": "function_1", "name": "lookup", "arguments": "{}"},
+			map[string]any{"type": "custom_tool_call", "call_id": "custom_1", "name": "apply_patch"},
+			map[string]any{"type": "tool_search_call", "call_id": "search_1", "query": "docs"},
+			map[string]any{"type": "mcp_tool_call", "call_id": "mcp_1", "name": "read"},
+			map[string]any{"type": "function_call_output", "call_id": "orphan_1", "output": "keep this result"},
+		}}
+
+		require.True(t, repairOpenAIResponsesInputToolPairing(reqBody))
+		got := reqBody["input"].([]any)
+		require.Len(t, got, 7)
+		require.Equal(t, map[string]any{"type": "function_call_output", "call_id": "function_1", "output": openAIResponsesMissingToolOutputPlaceholder}, got[1])
+		require.Equal(t, map[string]any{"type": "custom_tool_call_output", "call_id": "custom_1", "output": openAIResponsesMissingToolOutputPlaceholder}, got[3])
+		require.Equal(t, "tool_search_call", got[4].(map[string]any)["type"])
+		require.Equal(t, "mcp_tool_call", got[5].(map[string]any)["type"])
+		require.Equal(t, "message", got[6].(map[string]any)["type"])
+		require.Contains(t, got[6].(map[string]any)["content"].([]any)[0].(map[string]any)["text"], "keep this result")
+	})
+
+	t.Run("paired calls and outputs are preserved regardless of order", func(t *testing.T) {
 		input := []any{
 			map[string]any{"type": "tool_search_output", "call_id": "search_1", "output": "first"},
 			map[string]any{"type": "tool_search_call", "id": "search_1", "query": "docs"},
-			map[string]any{"type": "custom_tool_call_output", "call_id": "custom_1", "output": "second"},
-			map[string]any{"type": "item_reference", "id": "custom_1"},
+			map[string]any{"type": "function_call_output", "call_id": "function_1", "output": "second"},
+			map[string]any{"type": "function_call", "call_id": "function_1", "name": "lookup", "arguments": "{}"},
+			map[string]any{"type": "custom_tool_call_output", "call_id": "custom_1", "output": "third"},
+			map[string]any{"type": "custom_tool_call", "call_id": "custom_1", "name": "apply_patch"},
+			map[string]any{"type": "mcp_tool_call_output", "call_id": "mcp_1", "output": "fourth"},
+			map[string]any{"type": "mcp_tool_call", "call_id": "mcp_1", "name": "read"},
 		}
 		reqBody := map[string]any{"input": input}
 
-		require.False(t, sanitizeOpenAIResponsesOrphanToolOutputs(reqBody, input, false))
+		require.False(t, repairOpenAIResponsesInputToolPairing(reqBody))
 		require.Equal(t, input, reqBody["input"])
 	})
 
-	t.Run("outputs do not legitimize each other", func(t *testing.T) {
+	t.Run("item reference proves call context", func(t *testing.T) {
 		input := []any{
-			map[string]any{"type": "function_call_output", "call_id": "missing", "output": "one"},
-			map[string]any{"type": "tool_search_output", "call_id": "missing", "output": "two"},
-			map[string]any{"type": "custom_tool_call_output", "call_id": "missing", "output": "three"},
-			map[string]any{"type": "mcp_tool_call_output", "call_id": "missing", "output": "four"},
+			map[string]any{"type": "function_call_output", "call_id": "referenced", "output": "ok"},
+			map[string]any{"type": "item_reference", "id": "referenced"},
 		}
 		reqBody := map[string]any{"input": input}
 
-		require.True(t, sanitizeOpenAIResponsesOrphanToolOutputs(reqBody, input, false))
-		got, ok := reqBody["input"].([]any)
-		require.True(t, ok)
-		require.Empty(t, got)
+		require.False(t, repairOpenAIResponsesInputToolPairing(reqBody))
+		require.Equal(t, input, reqBody["input"])
 	})
 
-	t.Run("preserves all output variants with matching calls", func(t *testing.T) {
-		pairs := []struct {
-			callType   string
-			outputType string
-		}{
-			{callType: "function_call", outputType: "function_call_output"},
-			{callType: "tool_search_call", outputType: "tool_search_output"},
-			{callType: "custom_tool_call", outputType: "custom_tool_call_output"},
-			{callType: "mcp_tool_call", outputType: "mcp_tool_call_output"},
-		}
-		input := make([]any, 0, len(pairs)*2)
-		for index, pair := range pairs {
-			callID := string(rune('a' + index))
-			input = append(input,
-				map[string]any{"type": pair.callType, "call_id": callID},
-				map[string]any{"type": pair.outputType, "call_id": callID, "output": "ok"},
-			)
-		}
-		reqBody := map[string]any{"input": input}
-
-		require.False(t, sanitizeOpenAIResponsesOrphanToolOutputs(reqBody, input, false))
-	})
-
-	t.Run("previous response may contain the missing call", func(t *testing.T) {
+	t.Run("previous response proves call context", func(t *testing.T) {
 		input := []any{map[string]any{"type": "function_call_output", "call_id": "remote", "output": "ok"}}
 		reqBody := map[string]any{"input": input, "previous_response_id": "resp_1"}
 
-		require.False(t, sanitizeOpenAIResponsesOrphanToolOutputs(reqBody, input, true))
+		require.False(t, repairOpenAIResponsesInputToolPairing(reqBody))
 		require.Equal(t, input, reqBody["input"])
+	})
+
+	t.Run("repair is idempotent", func(t *testing.T) {
+		reqBody := map[string]any{"input": []any{
+			map[string]any{"type": "function_call", "call_id": "call_1", "name": "lookup", "arguments": "{}"},
+			map[string]any{"type": "function_call_output", "call_id": "orphan", "output": "keep"},
+		}}
+
+		require.True(t, repairOpenAIResponsesInputToolPairing(reqBody))
+		first := reqBody["input"]
+		require.False(t, repairOpenAIResponsesInputToolPairing(reqBody))
+		require.Equal(t, first, reqBody["input"])
+	})
+
+	t.Run("bytes facade leaves invalid and unchanged bodies untouched", func(t *testing.T) {
+		invalid := []byte(`{"input":`)
+		got, changed := RepairOpenAIResponsesInputToolPairingBytes(invalid)
+		require.False(t, changed)
+		require.Equal(t, invalid, got)
+
+		unchanged := []byte(`{"input":[{"type":"function_call_output","name":"send_message_to_thread","output":"delegation"}]}`)
+		got, changed = RepairOpenAIResponsesInputToolPairingBytes(unchanged)
+		require.False(t, changed)
+		require.Equal(t, unchanged, got)
+	})
+
+	t.Run("bytes facade encodes repaired input", func(t *testing.T) {
+		body := []byte(`{"input":[{"type":"function_call_output","call_id":"orphan","output":"keep this result"}]}`)
+		got, changed := RepairOpenAIResponsesInputToolPairingBytes(body)
+		require.True(t, changed)
+		require.True(t, gjson.GetBytes(got, `input.0.content.0.text`).String() == "[Tool output from an earlier turn, call_id orphan]\nkeep this result")
+		require.False(t, gjson.GetBytes(got, `input.0.call_id`).Exists())
 	})
 }
 
@@ -198,7 +253,8 @@ func TestOpenAIGatewayService_OAuthDropsOrphanAfterDroppingPreviousResponse(t *t
 	require.NotNil(t, result)
 	require.Len(t, upstream.bodies, 1)
 	require.False(t, gjson.GetBytes(upstream.bodies[0], "previous_response_id").Exists())
-	require.Empty(t, gjson.GetBytes(upstream.bodies[0], "input").Array())
+	require.Equal(t, "user", gjson.GetBytes(upstream.bodies[0], "input.0.role").String())
+	require.Contains(t, gjson.GetBytes(upstream.bodies[0], "input.0.content.0.text").String(), "keep this result")
 }
 
 func TestOpenAIGatewayService_PreservesOversizedToolOutputForUpstream(t *testing.T) {
