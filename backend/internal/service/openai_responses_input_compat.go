@@ -89,7 +89,6 @@ func scanOpenAIResponsesToolPairing(input []any, hasPreviousResponseID bool) ope
 
 func rebuildOpenAIResponsesInputToolPairing(input []any, scan openAIResponsesToolPairingScan, hasPreviousResponseID bool) []any {
 	normalized := make([]any, 0, len(input)+2)
-	missingOutputs := make([]any, 0, 2)
 	missingOutputCallIDs := make(map[string]struct{})
 	for _, rawItem := range input {
 		item, ok := rawItem.(map[string]any)
@@ -120,14 +119,17 @@ func rebuildOpenAIResponsesInputToolPairing(input []any, scan openAIResponsesToo
 			if !ok {
 				continue
 			}
-			missingOutputs = append(missingOutputs, placeholder)
+			// Responses-compatible upstreams validate each call as it is read.
+			// Keep its placeholder output adjacent so a later call cannot make
+			// the preceding call appear to have no output.
+			normalized = append(normalized, placeholder)
 			missingOutputCallIDs[callID] = struct{}{}
 
 		default:
 			normalized = append(normalized, rawItem)
 		}
 	}
-	return append(normalized, missingOutputs...)
+	return normalized
 }
 
 func openAIResponsesToolOutputNeedsOrphanRewrite(item map[string]any, scan openAIResponsesToolPairingScan, hasPreviousResponseID bool) bool {

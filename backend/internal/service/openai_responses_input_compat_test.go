@@ -53,9 +53,12 @@ func TestRepairOpenAIResponsesInputToolPairing(t *testing.T) {
 		require.True(t, repairOpenAIResponsesInputToolPairing(reqBody))
 		got := reqBody["input"].([]any)
 		require.Len(t, got, 6)
-		require.Equal(t, input, got[:len(input)], "existing items keep their positions")
-		require.Equal(t, map[string]any{"type": "function_call_output", "call_id": "function_1", "output": openAIResponsesMissingToolOutputPlaceholder}, got[4])
-		require.Equal(t, map[string]any{"type": "custom_tool_call_output", "call_id": "custom_1", "output": openAIResponsesMissingToolOutputPlaceholder}, got[5])
+		require.Equal(t, input[0], got[0])
+		require.Equal(t, map[string]any{"type": "function_call_output", "call_id": "function_1", "output": openAIResponsesMissingToolOutputPlaceholder}, got[1], "placeholder output must be adjacent to its call")
+		require.Equal(t, input[1], got[2])
+		require.Equal(t, map[string]any{"type": "custom_tool_call_output", "call_id": "custom_1", "output": openAIResponsesMissingToolOutputPlaceholder}, got[3], "placeholder output must be adjacent to its call")
+		require.Equal(t, input[2], got[4])
+		require.Equal(t, input[3], got[5])
 
 		first := reqBody["input"]
 		require.False(t, repairOpenAIResponsesInputToolPairing(reqBody))
@@ -73,8 +76,8 @@ func TestRepairOpenAIResponsesInputToolPairing(t *testing.T) {
 		got := reqBody["input"].([]any)
 		require.Len(t, got, 3)
 		require.Equal(t, input[0], got[0])
-		require.Equal(t, input[1], got[1])
-		require.Equal(t, map[string]any{"type": "function_call_output", "call_id": "duplicate", "output": openAIResponsesMissingToolOutputPlaceholder}, got[2])
+		require.Equal(t, map[string]any{"type": "function_call_output", "call_id": "duplicate", "output": openAIResponsesMissingToolOutputPlaceholder}, got[1])
+		require.Equal(t, input[1], got[2])
 	})
 
 	t.Run("orphan output triggers placeholders for supported call types", func(t *testing.T) {
@@ -89,12 +92,12 @@ func TestRepairOpenAIResponsesInputToolPairing(t *testing.T) {
 		require.True(t, repairOpenAIResponsesInputToolPairing(reqBody))
 		got := reqBody["input"].([]any)
 		require.Len(t, got, 7)
-		require.Equal(t, "tool_search_call", got[2].(map[string]any)["type"])
-		require.Equal(t, "mcp_tool_call", got[3].(map[string]any)["type"])
-		require.Equal(t, "message", got[4].(map[string]any)["type"])
-		require.Contains(t, got[4].(map[string]any)["content"].([]any)[0].(map[string]any)["text"], "keep this result")
-		require.Equal(t, map[string]any{"type": "function_call_output", "call_id": "function_1", "output": openAIResponsesMissingToolOutputPlaceholder}, got[5])
-		require.Equal(t, map[string]any{"type": "custom_tool_call_output", "call_id": "custom_1", "output": openAIResponsesMissingToolOutputPlaceholder}, got[6])
+		require.Equal(t, "function_call_output", got[1].(map[string]any)["type"])
+		require.Equal(t, "custom_tool_call_output", got[3].(map[string]any)["type"])
+		require.Equal(t, "tool_search_call", got[4].(map[string]any)["type"])
+		require.Equal(t, "mcp_tool_call", got[5].(map[string]any)["type"])
+		require.Equal(t, "message", got[6].(map[string]any)["type"])
+		require.Contains(t, got[6].(map[string]any)["content"].([]any)[0].(map[string]any)["text"], "keep this result")
 	})
 
 	t.Run("paired calls and outputs are preserved regardless of order", func(t *testing.T) {
