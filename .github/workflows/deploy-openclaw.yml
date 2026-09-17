@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'Immutable image tag to deploy, for example sha-<40-character-commit-sha>'
+        description: 'Version or immutable image tag, for example v0.2.18 or sha-<40-character-commit-sha>'
         required: true
         type: string
 
@@ -44,15 +44,23 @@ jobs:
 
       - name: Deploy published image
         shell: bash
+        env:
+          REQUESTED_IMAGE_TAG: ${{ inputs.image_tag }}
+          WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_run" ]]; then
-            IMAGE_TAG="sha-${{ github.event.workflow_run.head_sha }}"
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_run" ]]; then
+            IMAGE_TAG="sha-${WORKFLOW_RUN_SHA}"
           else
-            IMAGE_TAG="${{ inputs.image_tag }}"
+            IMAGE_TAG="$REQUESTED_IMAGE_TAG"
+
+            # 2026-09-17 coder(lq): Published version images omit the release tag's leading "v".
+            if [[ "$IMAGE_TAG" == v* ]]; then
+              IMAGE_TAG="${IMAGE_TAG#v}"
+            fi
           fi
 
-          if [[ ! "$IMAGE_TAG" =~ ^sha-[0-9a-f]{40}$ ]]; then
-            echo "Expected an immutable sha-<40-character-commit-sha> image tag, got: $IMAGE_TAG" >&2
+          if [[ ! "$IMAGE_TAG" =~ ^sha-[0-9a-f]{40}$ && ! "$IMAGE_TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Expected a version tag such as v0.2.18 or an immutable sha-<40-character-commit-sha> tag, got: $REQUESTED_IMAGE_TAG" >&2
             exit 1
           fi
 
