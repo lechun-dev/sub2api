@@ -141,6 +141,9 @@ func normalizeDeepSeekResponsesRequestBody(account *Account, body []byte) []byte
 	if stripped, err := sjson.DeleteBytes(normalized, "previous_response_id"); err == nil {
 		normalized = stripped
 	}
+	if repaired, changed := RepairOpenAIResponsesInputToolPairingBytes(normalized); changed {
+		normalized = repaired
+	}
 	return normalized
 }
 

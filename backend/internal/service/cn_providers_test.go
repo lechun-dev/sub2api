@@ -859,6 +859,29 @@ func TestNormalizeDeepSeekResponsesRequestBody(t *testing.T) {
 	require.Equal(t, string(body), string(normalizeDeepSeekResponsesRequestBody(openai, body)))
 }
 
+// TestNormalizeDeepSeekResponsesRequestBodyRepairsToolPairing 验证清理
+// previous_response_id 后会补齐缺失的 Responses 工具输出，并且重复归一化幂等。
+func TestNormalizeDeepSeekResponsesRequestBodyRepairsToolPairing(t *testing.T) {
+	t.Parallel()
+
+	account := &Account{
+		Platform: PlatformDeepseek, Type: AccountTypeAPIKey,
+		Credentials: map[string]any{"api_protocol": APIProtocolResponses},
+	}
+	body := []byte(`{"model":"deepseek-v4-pro","store":true,"previous_response_id":"resp_123","reasoning":{"effort":"high"},"input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"hi"}]},{"type":"function_call","call_id":"call_123","name":"lookup","arguments":"{}"}]}`)
+
+	normalized := normalizeDeepSeekResponsesRequestBody(account, body)
+	require.False(t, gjson.GetBytes(normalized, "store").Bool())
+	require.False(t, gjson.GetBytes(normalized, "previous_response_id").Exists())
+	require.Equal(t, "high", gjson.GetBytes(normalized, "reasoning.effort").String())
+	require.Len(t, gjson.GetBytes(normalized, "input").Array(), 3)
+	require.Equal(t, "function_call_output", gjson.GetBytes(normalized, "input.2.type").String())
+	require.Equal(t, "call_123", gjson.GetBytes(normalized, "input.2.call_id").String())
+	require.Equal(t, openAIResponsesMissingToolOutputPlaceholder, gjson.GetBytes(normalized, "input.2.output").String())
+
+	require.Equal(t, string(normalized), string(normalizeDeepSeekResponsesRequestBody(account, normalized)))
+}
+
 // TestGetAnthropicAPIKeyAuthScheme_CNProvider CN 账号可经 extra 覆写鉴权方案，
 // 默认保持 x-api-key。
 func TestGetAnthropicAPIKeyAuthScheme_CNProvider(t *testing.T) {
