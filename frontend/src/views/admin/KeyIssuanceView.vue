@@ -858,7 +858,6 @@ async function loadUsers(search = ''): Promise<void> {
   try {
     const response = await adminAPI.users.list(1, 1000, {
       status: 'active',
-      role: 'user',
       search: query || undefined,
       sort_by: 'email',
       sort_order: 'asc'
