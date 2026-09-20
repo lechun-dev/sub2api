@@ -690,7 +690,18 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		if decodeErr != nil {
 			return nil, decodeErr
 		}
-		if repairOpenAIResponsesInputToolPairing(decoded) {
+		// 2026-09-20 coder(lq): Keep upstream orphan cleanup for SetupToken while
+		// preserving the local OAuth repair that converts orphan outputs to messages.
+		if account.Type == AccountTypeSetupToken {
+			input, ok := decoded["input"].([]any)
+			if ok && sanitizeOpenAIResponsesOrphanToolOutputs(
+				decoded,
+				input,
+				strings.TrimSpace(firstNonEmptyString(decoded["previous_response_id"])) != "",
+			) {
+				markDecodedModified()
+			}
+		} else if repairOpenAIResponsesInputToolPairing(decoded) {
 			markDecodedModified()
 		}
 	}
