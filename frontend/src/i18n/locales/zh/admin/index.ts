@@ -1,4 +1,5 @@
 import overview from './overview'
+import clientAccess from './clientAccess'
 import channels from './channels'
 import accounts from './accounts'
 import resources from './resources'
@@ -10,6 +11,7 @@ import plugins from './plugins'
 import keyIssuance from './keyIssuance'
 
 export default {
+  ...clientAccess,
   ...overview,
   ...channels,
   ...accounts,

@@ -463,6 +463,12 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/client-access',
+    name: 'AdminClientAccess',
+    component: () => import('@/views/admin/ClientAccessView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, title: 'Client access management', titleKey: 'admin.clientAccess.title' }
+  },
+  {
     path: '/admin/groups',
     name: 'AdminGroups',
     component: () => import('@/views/admin/GroupsView.vue'),

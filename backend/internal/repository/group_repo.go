@@ -222,6 +222,12 @@ func (r *groupRepository) CreateFromSource(ctx context.Context, groupIn *service
 	if err := createGroupRecord(ctx, txClient, groupIn); err != nil {
 		return err
 	}
+	if err := lockLiveGroups(ctx, txClient, []int64{sourceGroupID}); err != nil {
+		return err
+	}
+	if err := mutateClientAccessGroup(ctx, txClient, sourceGroupID, groupIn.ID); err != nil {
+		return err
+	}
 	result, err := txClient.ExecContext(
 		ctx,
 		`INSERT INTO account_groups (account_id, group_id, priority, created_at)
@@ -964,6 +970,9 @@ func (r *groupRepository) deleteCascade(ctx context.Context, id int64, requireEm
 	}
 
 	// 5. Soft-delete group itself.
+	if err := mutateClientAccessGroup(ctx, txClient, id, 0); err != nil {
+		return nil, err
+	}
 	if _, err := txClient.Group.Delete().Where(group.IDEQ(id)).Exec(ctx); err != nil {
 		return nil, err
 	}

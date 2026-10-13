@@ -29,6 +29,7 @@ const (
 	IngressRejectInvalidAuthRateLimited IngressRejectReason = "invalid_auth_rate_limited"
 	IngressRejectAPIKeyAuthOverloaded   IngressRejectReason = "api_key_auth_overloaded"
 	IngressRejectModelNotAllowed        IngressRejectReason = "model_not_allowed"
+	IngressRejectClientPolicyDenied     IngressRejectReason = "client_policy_denied"
 )
 
 const ingressRejectReasonContextKey = "ingress_reject_reason"

@@ -49,6 +49,7 @@
           <div
             class="flex w-full flex-shrink-0 flex-wrap items-center justify-end gap-3 lg:w-auto"
           >
+            <RouterLink to="/admin/client-access" class="btn btn-secondary">{{ t("admin.clientAccess.title") }}</RouterLink>
             <button
               @click="loadGroups"
               :disabled="loading"
@@ -442,6 +443,10 @@
                   t("admin.groups.rpmOverrides")
                 }}</span>
               </button>
+              <RouterLink :to="{ path: '/admin/client-access', query: { group: String(row.id) } }" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 hover:text-primary-600">
+                <Icon name="shield" size="sm" />
+                <span class="text-xs">{{ t("admin.clientAccess.title") }}</span>
+              </RouterLink>
               <button
                 @click="handleDelete(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
@@ -2126,6 +2131,7 @@
         @submit.prevent="handleUpdateGroup"
         class="space-y-5"
       >
+        <RouterLink :to="{ path: '/admin/client-access', query: { group: String(editingGroup.id) } }" target="_blank" rel="noopener" class="btn btn-secondary">{{ t("admin.clientAccess.manage") }}</RouterLink>
         <div>
           <GroupI18nField
             v-model="editForm.name"
@@ -4266,6 +4272,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from "vue";
+import { RouterLink } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useAppStore } from "@/stores/app";
 import { useAuthStore } from "@/stores/auth";
