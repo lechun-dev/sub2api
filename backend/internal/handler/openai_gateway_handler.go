@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -330,9 +331,9 @@ func allowOpenAICompatibleMessagesDispatch(c *gin.Context, apiKey *service.APIKe
 
 func openAICompatibleTextTargetAllowed(c *gin.Context, apiKey *service.APIKey, model string) bool {
 	return compositeTargetPlatformAllowed(c, apiKey, model,
-		service.PlatformOpenAI, service.PlatformGrok,
-		service.PlatformKimi, service.PlatformZhipu, service.PlatformDeepseek,
-		service.PlatformMiniMax, service.PlatformOpenCodeGo)
+		domain.PlatformIDsWhere(func(spec domain.PlatformSpec) bool {
+			return spec.Gateway == domain.PlatformGatewayOpenAI
+		})...)
 }
 
 // isResponsesWebSocketCompositePlatform 限定 composite 分组在 Responses WebSocket
@@ -2972,6 +2973,21 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 			ReasoningEffortMappings:     reasoningEffortMappings,
 			TurnStarted:                 recordTurnStart,
 			BeforeRequest: func(turn int, payload []byte, originalModel string) error {
+				// 2026-10-13 coder(lq): 管理员改客户端策略后，已建立的 Responses WS 也必须在下一轮拒绝，不能沿用握手权限。
+				clientDecision, clientPolicyErr := middleware2.CheckWebSocketClientAccess(c)
+				if clientPolicyErr != nil || !clientDecision.Allowed {
+					code, message := clientDecision.Code, clientDecision.Message
+					closeStatus := coderws.StatusPolicyViolation
+					if clientPolicyErr != nil {
+						code, message = "client_policy_unavailable", "客户端访问规则暂不可用，请稍后重试。"
+						closeStatus = coderws.StatusInternalError
+					}
+					frame, _ := json.Marshal(gin.H{"type": "error", "error": gin.H{"type": "permission_error", "code": code, "message": message}})
+					_ = wsConn.Write(ctx, coderws.MessageText, frame)
+					service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalPolicyDenied)
+					middleware2.MarkIngressRejected(c, middleware2.IngressRejectClientPolicyDenied)
+					return service.NewOpenAIWSClientCloseError(closeStatus, code, clientPolicyErr)
+				}
 				c.Set(securityAuditWSTurnContextKey, turn)
 				service.BeginOpsStreamTurn(c, turn)
 				setCyberTurnBody(turn, payload)

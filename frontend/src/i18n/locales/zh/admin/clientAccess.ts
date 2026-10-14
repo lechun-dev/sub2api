@@ -1,0 +1,26 @@
+export default {
+  clientAccess: {
+    title: '客户端访问管理',
+    description: '集中维护客户端识别规则，并按 API Key 绑定的分组限制访问。新分组默认不限制。',
+    risk: '请求头标识可以被伪造，这不是严格身份认证。规则变更会影响所有引用它的分组；其他服务实例最多 2 秒生效。',
+    clients: '客户端规则', groups: '分组访问策略', addClient: '添加客户端',
+    id: '唯一标识', name: '客户端名称', enabled: '启用', builtin: '内置识别器',
+    builtinHint: '复用 Codex 官方 User-Agent 严格识别逻辑，不接受自定义头条件。账号级限制仍独立生效。',
+    all: '所有条件满足', any: '任一条件满足', header: '请求头', operator: '匹配方式', value: '匹配值',
+    exact: '精确匹配', prefix: '前缀匹配', contains: '包含匹配', addRule: '添加条件', remove: '删除',
+    referenced: '引用分组：{groups}。被引用的客户端不可删除或停用。',
+    noReferences: '暂无分组引用', selectGroup: '选择分组', searchGroup: '搜索分组名称或 ID',
+    off: '不限制', allow: '仅允许指定客户端', deny: '禁止指定客户端',
+    unknownHint: '仅允许：未识别请求拒绝。禁止：未识别请求允许。多条规则命中时，禁止列表任一命中即拒绝。',
+    preview: '拦截提示预览', allowPreview: '当前 API Key 所属分组仅允许使用：{clients}。请切换到允许的客户端后重试。',
+    denyPreview: '当前 API Key 所属分组禁止使用：{clients}。请更换客户端后重试。',
+    save: '保存全部规则与策略', saved: '客户端配置已保存', reload: '重新加载',
+    unsaved: '有尚未保存的变更', discard: '重新加载会丢弃未保存的修改，是否继续？',
+    required: '限制模式至少选择一个已启用客户端', loadError: '客户端配置加载失败，请重试', saveError: '保存失败，请检查配置后重试',
+    invalidClient: '请填写有效客户端标识、名称及非空识别条件',
+    conflict: '配置已被其他管理员修改。你的编辑仍保留，请重新加载后调整并保存。',
+    noGroups: '请先创建分组，再配置客户端策略。',
+    policyCount: '已配置 {count} 个限制分组', manage: '管理客户端及分组策略',
+    groupId: '分组 ID', affected: '修改客户端识别条件前，请核对上方引用分组，避免误拦正常客户端。',
+  }
+}

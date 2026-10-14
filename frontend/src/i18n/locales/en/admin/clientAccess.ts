@@ -1,0 +1,26 @@
+export default {
+  clientAccess: {
+    title: 'Client access management',
+    description: 'Maintain client recognition rules and enforce access by the API key’s group. New groups are unrestricted.',
+    risk: 'Headers can be spoofed; this is not strong authentication. Changes affect every referencing group and reach other instances within 2 seconds.',
+    clients: 'Client rules', groups: 'Group access policies', addClient: 'Add client',
+    id: 'Unique ID', name: 'Client name', enabled: 'Enabled', builtin: 'Built-in detector',
+    builtinHint: 'Uses strict official Codex User-Agent recognition. Custom header conditions are not supported. Account restrictions still apply independently.',
+    all: 'Match all conditions', any: 'Match any condition', header: 'Header', operator: 'Operator', value: 'Value',
+    exact: 'Exact', prefix: 'Prefix', contains: 'Contains', addRule: 'Add condition', remove: 'Remove',
+    referenced: 'Referenced by groups: {groups}. Referenced clients cannot be removed or disabled.',
+    noReferences: 'Not referenced', selectGroup: 'Select group', searchGroup: 'Search group name or ID',
+    off: 'Unrestricted', allow: 'Allow selected clients only', deny: 'Deny selected clients',
+    unknownHint: 'Allow mode rejects unidentified clients; deny mode allows them. Any selected deny rule match blocks access, even if another rule also matches.',
+    preview: 'Denial message preview', allowPreview: 'This API key’s group only allows: {clients}. Switch to an allowed client and retry.',
+    denyPreview: 'This API key’s group prohibits: {clients}. Switch clients and retry.',
+    save: 'Save all rules and policies', saved: 'Client access settings saved', reload: 'Reload',
+    unsaved: 'Unsaved changes', discard: 'Reloading will discard your changes. Continue?',
+    required: 'Select at least one enabled client for a restricted policy', loadError: 'Could not load client access settings. Retry.', saveError: 'Save failed. Check the configuration and retry.',
+    invalidClient: 'Enter a valid client ID, name, and non-empty recognition conditions',
+    conflict: 'Another administrator changed this configuration. Your edits are preserved. Reload, adjust, and save again.',
+    noGroups: 'Create a group before configuring its client policy.',
+    policyCount: '{count} restricted groups configured', manage: 'Manage clients and group policies',
+    groupId: 'Group ID', affected: 'Before editing recognition conditions, check the referenced groups above to avoid blocking legitimate clients.',
+  }
+}

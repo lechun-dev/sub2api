@@ -42,6 +42,8 @@ func RegisterAdminRoutes(
 
 		// 分组管理
 		registerGroupRoutes(admin, h)
+		admin.GET("/client-access", h.Admin.Setting.GetClientAccess)
+		admin.PUT("/client-access", h.Admin.Setting.SaveClientAccess)
 
 		// 账号管理
 		registerAccountRoutes(admin, h, stepUpAuth)
