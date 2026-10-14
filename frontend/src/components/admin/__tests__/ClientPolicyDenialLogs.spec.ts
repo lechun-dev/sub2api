@@ -46,6 +46,35 @@ describe('policy dates and denial logs', () => {
     expect(wrapper.text()).not.toContain('72')
     expect(wrapper.text()).toContain('当前客户端不在允许列表内')
   })
+  it('shows diagnostic UA and explains an unmatched registered rule without inventing a client', async () => {
+    mocks.logs.mockResolvedValueOnce({ items: [{ ...fixture, user_agent: 'curl/8.9', snapshot: { ...fixture.snapshot, code: 'client_unrecognized', detected_clients: [], detected_count: 0, recognition_reason: 'no_matching_rule' } }], total: 1 })
+    const wrapper = open(); await flushPromises()
+    expect(wrapper.text()).toContain('User-Agent: curl/8.9')
+    expect(wrapper.text()).toContain('已携带 User-Agent，但未命中任何已启用客户端规则')
+    expect(wrapper.text()).toContain('识别到的客户端: 未识别')
+  })
+  it('distinguishes missing UA from historically uncollected data', async () => {
+    mocks.logs.mockResolvedValueOnce({ items: [{ ...fixture, user_agent: '', snapshot: { ...fixture.snapshot, recognition_reason: 'user_agent_missing' } }], total: 1 })
+    const wrapper = open(); await flushPromises()
+    expect(wrapper.text()).toContain('User-Agent: 未携带')
+    expect(wrapper.text()).toContain('请求未携带 User-Agent')
+    mocks.logs.mockResolvedValueOnce({ items: [fixture], total: 1 })
+    await wrapper.get('button').trigger('click'); await flushPromises()
+    expect(wrapper.text()).toContain('User-Agent: 历史未记录')
+    expect(wrapper.text()).not.toContain('请求未携带 User-Agent')
+  })
+  it('does not confuse a filtered-empty UA with a missing UA', async () => {
+    mocks.logs.mockResolvedValueOnce({ items: [{ ...fixture, user_agent: '', snapshot: { ...fixture.snapshot, user_agent_present: true, recognition_reason: 'no_matching_rule' } }], total: 1 })
+    const wrapper = open(); await flushPromises()
+    expect(wrapper.text()).toContain('User-Agent: 已携带，内容经脱敏或清理后为空')
+    expect(wrapper.text()).not.toContain('User-Agent: 未携带')
+  })
+  it('renders untrusted UA as escaped text rather than HTML', async () => {
+    mocks.logs.mockResolvedValueOnce({ items: [{ ...fixture, user_agent: '<img src=x onerror=alert(1)>' }], total: 1 })
+    const wrapper = open(); await flushPromises()
+    expect(wrapper.find('img').exists()).toBe(false)
+    expect(wrapper.text()).toContain('<img src=x onerror=alert(1)>')
+  })
   it('keeps a fixed date range while paging and resets it when selecting seven days', async () => {
     const wrapper = open(); await flushPromises()
     const first = mocks.logs.mock.calls[0][0]

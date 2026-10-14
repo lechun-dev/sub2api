@@ -14,15 +14,18 @@ type ClientPolicyClient struct {
 	Name string `json:"name"`
 }
 type ClientPolicySnapshot struct {
-	Code            string               `json:"code"`
-	Mode            string               `json:"mode"`
-	DetectedClients []ClientPolicyClient `json:"detected_clients"`
-	SelectedClients []ClientPolicyClient `json:"selected_clients"`
-	DetectedCount   int                  `json:"detected_count"`
-	SelectedCount   int                  `json:"selected_count"`
-	PolicyUpdatedAt *time.Time           `json:"policy_updated_at,omitempty"`
+	UserAgentPresent  *bool                `json:"user_agent_present,omitempty"`
+	RecognitionReason string               `json:"recognition_reason,omitempty"`
+	Code              string               `json:"code"`
+	Mode              string               `json:"mode"`
+	DetectedClients   []ClientPolicyClient `json:"detected_clients"`
+	SelectedClients   []ClientPolicyClient `json:"selected_clients"`
+	DetectedCount     int                  `json:"detected_count"`
+	SelectedCount     int                  `json:"selected_count"`
+	PolicyUpdatedAt   *time.Time           `json:"policy_updated_at,omitempty"`
 }
 type ClientPolicyDenialEvent struct {
+	UserAgent string
 	CreatedAt time.Time
 	GroupID   int64
 	Snapshot  ClientPolicySnapshot
@@ -31,6 +34,7 @@ type ClientPolicyDenialLog struct {
 	ID          int64                 `json:"id"`
 	CreatedAt   time.Time             `json:"created_at"`
 	GroupID     int64                 `json:"group_id"`
+	UserAgent   string                `json:"user_agent"`
 	Username    string                `json:"username"`
 	UserID      *int64                `json:"user_id,omitempty"`
 	APIKeyID    *int64                `json:"api_key_id,omitempty"`

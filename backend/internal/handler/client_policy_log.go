@@ -19,7 +19,7 @@ func recordClientPolicyDenial(ops *service.OpsService, c *gin.Context, event ser
 	enqueueOpsErrorLog(ops, buildClientPolicyDenialLog(c, event))
 }
 
-// 2026-10-14 coder(lq): 白名单字段单独构建，拒绝读取原始 UA、凭据、请求正文和 URL query；WS 关闭后按拒绝发生时间入队。
+// 2026-10-14 coder(lq): 白名单字段单独构建，仅使用事件中的脱敏 UA，拒绝读取其他原始头、凭据、请求正文和 URL query；WS 关闭后按拒绝发生时间入队。
 func buildClientPolicyDenialLog(c *gin.Context, event service.ClientPolicyDenialEvent) *service.OpsInsertErrorLogInput {
 	body, _ := json.Marshal(event.Snapshot)
 	requestID, _ := c.Request.Context().Value(ctxkey.RequestID).(string)
@@ -27,7 +27,7 @@ func buildClientPolicyDenialLog(c *gin.Context, event service.ClientPolicyDenial
 		requestID = c.Writer.Header().Get("X-Request-Id")
 	}
 	entry := &service.OpsInsertErrorLogInput{
-		CreatedAt: event.CreatedAt, GroupID: &event.GroupID, RequestID: truncateString(requestID, 128),
+		UserAgent: service.SanitizeClientPolicyUserAgent(event.UserAgent), CreatedAt: event.CreatedAt, GroupID: &event.GroupID, RequestID: truncateString(requestID, 128),
 		RequestPath: truncateString(c.FullPath(), 512), StatusCode: http.StatusForbidden,
 		ErrorPhase: "request", ErrorType: service.ClientPolicyDenialType, ErrorOwner: "client", ErrorSource: "gateway", Severity: "info",
 		IsBusinessLimited: true, ErrorMessage: event.Snapshot.Code, ErrorBody: string(body),

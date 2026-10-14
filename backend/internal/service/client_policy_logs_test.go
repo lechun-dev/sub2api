@@ -35,7 +35,7 @@ func TestClientPolicyDenialSnapshotCodesAndBounds(t *testing.T) {
 	for i := range clients {
 		clients[i] = ClientPolicyClient{ID: strings.Repeat("x", 64), Name: strings.Repeat("<", 100)}
 	}
-	snapshot := ClientPolicySnapshot{Code: "client_forbidden", Mode: "deny", DetectedClients: boundedPolicyClients(clients), SelectedClients: boundedPolicyClients(clients), DetectedCount: 100, SelectedCount: 100}
+	snapshot := ClientPolicySnapshot{RecognitionReason: "matched_registered_client", Code: "client_forbidden", Mode: "deny", DetectedClients: boundedPolicyClients(clients), SelectedClients: boundedPolicyClients(clients), DetectedCount: 100, SelectedCount: 100}
 	encoded, err := json.Marshal(snapshot)
 	require.NoError(t, err)
 	require.Less(t, len(encoded), 8192)
