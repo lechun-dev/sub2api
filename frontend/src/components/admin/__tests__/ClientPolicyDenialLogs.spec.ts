@@ -12,7 +12,7 @@ vi.mock('vue-i18n', async importOriginal => ({ ...(await importOriginal<object>(
   return text
 } }) }))
 enableAutoUnmount(afterEach)
-const fixture = { id: 1, created_at: '2026-10-14T01:00:00Z', group_id: 38, user_id: 72, api_key_id: 41, client_ip: '192.0.2.1', request_id: 'request-1', request_path: '/responses', snapshot: {
+const fixture = { id: 1, created_at: '2026-10-14T01:00:00Z', group_id: 38, user_id: 72, username: '张三', api_key_id: 41, client_ip: '192.0.2.1', request_id: 'request-1', request_path: '/responses', snapshot: {
   code: 'client_not_allowed', mode: 'allow', detected_clients: [{ id: 'deepseek_harness', name: '旧版客户端名' }], detected_count: 1,
   selected_clients: [{ id: 'codex', name: '拦截时的 Codex' }], selected_count: 1
 } }
@@ -41,6 +41,9 @@ describe('policy dates and denial logs', () => {
     expect(wrapper.text()).toContain('旧版客户端名')
     expect(wrapper.text()).toContain('拦截时的 Codex')
     expect(wrapper.text()).toContain('API Key ID: 41')
+    expect(wrapper.text()).toContain('用户名: 张三')
+    expect(wrapper.text()).not.toContain('用户 ID')
+    expect(wrapper.text()).not.toContain('72')
     expect(wrapper.text()).toContain('当前客户端不在允许列表内')
   })
   it('keeps a fixed date range while paging and resets it when selecting seven days', async () => {
@@ -64,6 +67,12 @@ describe('policy dates and denial logs', () => {
     mocks.logs.mockResolvedValueOnce({ items: [], total: 0 })
     await wrapper.get('button').trigger('click'); await flushPromises()
     expect(wrapper.text()).toContain('此时间范围没有记录')
+  })
+  it('shows an unavailable username without falling back to user IDs', async () => {
+    mocks.logs.mockResolvedValueOnce({ items: [{ ...fixture, username: '   ' }], total: 1 })
+    const wrapper = open(); await flushPromises()
+    expect(wrapper.text()).toContain('用户名: 用户不可用')
+    expect(wrapper.text()).not.toContain('72')
   })
   it('isolates missing snapshots without breaking the list', async () => {
     mocks.logs.mockResolvedValueOnce({ items: [{ ...fixture, snapshot: undefined }], total: 1 })

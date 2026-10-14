@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -28,14 +29,15 @@ func (r *opsRepository) ListClientPolicyDenials(ctx context.Context, filter serv
 	if size > 100 {
 		size = 100
 	}
-	where := `WHERE error_type = $1 AND group_id = $2 AND created_at >= $3 AND created_at < $4`
+	where := `WHERE l.error_type = $1 AND l.group_id = $2 AND l.created_at >= $3 AND l.created_at < $4`
 	args := []any{service.ClientPolicyDenialType, filter.GroupID, filter.StartTime.UTC(), filter.EndTime.UTC()}
 	result := &service.ClientPolicyDenialList{Items: make([]*service.ClientPolicyDenialLog, 0, size), Page: page, PageSize: size}
-	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM ops_error_logs `+where, args...).Scan(&result.Total); err != nil {
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM ops_error_logs l `+where, args...).Scan(&result.Total); err != nil {
 		return nil, err
 	}
 	args = append(args, size, (page-1)*size)
-	rows, err := r.db.QueryContext(ctx, `SELECT id,created_at,group_id,user_id,api_key_id,COALESCE(host(client_ip),''),COALESCE(request_id,''),COALESCE(request_path,''),COALESCE(error_body,'') FROM ops_error_logs `+where+` ORDER BY created_at DESC,id DESC LIMIT $5 OFFSET $6`, args...)
+	// 2026-10-14 coder(lq): 查询时一次关联当前用户名；已删除或缺失账号仍保留日志，不回退到邮箱或用户 ID。
+	rows, err := r.db.QueryContext(ctx, `SELECT l.id,l.created_at,l.group_id,l.user_id,l.api_key_id,COALESCE(host(l.client_ip),''),COALESCE(l.request_id,''),COALESCE(l.request_path,''),COALESCE(l.error_body,''),COALESCE(u.username,'') FROM ops_error_logs l LEFT JOIN users u ON u.id = l.user_id AND u.deleted_at IS NULL `+where+` ORDER BY l.created_at DESC,l.id DESC LIMIT $5 OFFSET $6`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -44,9 +46,10 @@ func (r *opsRepository) ListClientPolicyDenials(ctx context.Context, filter serv
 		row := &service.ClientPolicyDenialLog{}
 		var user, key sql.NullInt64
 		var raw string
-		if err := rows.Scan(&row.ID, &row.CreatedAt, &row.GroupID, &user, &key, &row.ClientIP, &row.RequestID, &row.RequestPath, &raw); err != nil {
+		if err := rows.Scan(&row.ID, &row.CreatedAt, &row.GroupID, &user, &key, &row.ClientIP, &row.RequestID, &row.RequestPath, &raw, &row.Username); err != nil {
 			return nil, err
 		}
+		row.Username = strings.TrimSpace(row.Username)
 		if user.Valid {
 			row.UserID = &user.Int64
 		}

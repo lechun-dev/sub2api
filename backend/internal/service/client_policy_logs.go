@@ -31,6 +31,7 @@ type ClientPolicyDenialLog struct {
 	ID          int64                 `json:"id"`
 	CreatedAt   time.Time             `json:"created_at"`
 	GroupID     int64                 `json:"group_id"`
+	Username    string                `json:"username"`
 	UserID      *int64                `json:"user_id,omitempty"`
 	APIKeyID    *int64                `json:"api_key_id,omitempty"`
 	ClientIP    string                `json:"client_ip"`

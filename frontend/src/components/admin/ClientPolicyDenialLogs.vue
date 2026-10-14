@@ -27,7 +27,7 @@
             </template>
             <p v-else>{{ t('admin.clientAccess.snapshotUnavailable') }}</p>
             <dl class="grid gap-2 sm:grid-cols-2 text-xs text-gray-500 break-all">
-              <div><dt class="inline">{{ t('admin.clientAccess.logUser') }}: </dt><dd class="inline">{{ item.user_id ?? '—' }}</dd></div>
+              <div><dt class="inline">{{ t('admin.clientAccess.logUser') }}: </dt><dd class="inline">{{ item.username?.trim() || t('admin.clientAccess.userUnavailable') }}</dd></div>
               <div><dt class="inline">API Key ID: </dt><dd class="inline">{{ item.api_key_id ?? '—' }}</dd></div>
               <div><dt class="inline">IP: </dt><dd class="inline">{{ item.client_ip || '—' }}</dd></div>
               <div><dt class="inline">{{ t('admin.clientAccess.logRoute') }}: </dt><dd class="inline">{{ item.request_path || '—' }}</dd></div>

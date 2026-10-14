@@ -55,6 +55,7 @@ export interface ClientPolicyDenialLog {
   id: number
   created_at: string
   group_id: number
+  username: string
   user_id?: number
   api_key_id?: number
   client_ip: string
