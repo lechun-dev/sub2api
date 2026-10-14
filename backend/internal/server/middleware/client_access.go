@@ -40,6 +40,7 @@ func GroupClientAccess(settings *service.SettingService) gin.HandlerFunc {
 		if decision.Allowed {
 			if isResponsesWebSocketRoute(c) {
 				groupID, headers := key.Group.ID, c.Request.Header.Clone()
+				userAgent := service.SanitizeClientPolicyUserAgent(headers.Get("User-Agent"), key.Key)
 				for _, name := range []string{"Authorization", "X-Api-Key", "X-Goog-Api-Key", "Cookie"} {
 					headers.Del(name)
 				}
@@ -49,14 +50,14 @@ func GroupClientAccess(settings *service.SettingService) gin.HandlerFunc {
 						return service.ClientAccessDecision{}, err
 					}
 					decision := service.EvaluateClientAccess(next, groupID, headers)
-					markClientPolicyDenial(c, groupID, decision)
+					markClientPolicyDenial(c, groupID, decision, userAgent)
 					return decision, nil
 				}))
 			}
 			c.Next()
 			return
 		}
-		markClientPolicyDenial(c, key.Group.ID, decision)
+		markClientPolicyDenial(c, key.Group.ID, decision, service.SanitizeClientPolicyUserAgent(c.GetHeader("User-Agent"), key.Key))
 		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalPolicyDenied)
 		MarkIngressRejected(c, IngressRejectClientPolicyDenied)
 		writeClientAccessError(c, http.StatusForbidden, decision.Code, decision.Message)
@@ -77,10 +78,10 @@ func writeClientAccessError(c *gin.Context, status int, code, message string) {
 	c.AbortWithStatusJSON(status, gin.H{"type": "error", "error": gin.H{"type": errorType, "code": code, "message": message}})
 }
 
-// 2026-10-14 coder(lq): 只登记已确定的策略拒绝，不记录请求体/头；WS 使用握手时原始分组，避免路由改写后归错组。
-func markClientPolicyDenial(c *gin.Context, groupID int64, decision service.ClientAccessDecision) {
+// 2026-10-14 coder(lq): 只登记已确定的策略拒绝和脱敏 UA，不记录请求体/其他头；WS 使用握手时原始分组，避免路由改写后归错组。
+func markClientPolicyDenial(c *gin.Context, groupID int64, decision service.ClientAccessDecision, userAgent string) {
 	if decision.Allowed || decision.Denial == nil {
 		return
 	}
-	c.Set(service.ClientPolicyDenialContextKey, service.ClientPolicyDenialEvent{CreatedAt: time.Now().UTC(), GroupID: groupID, Snapshot: *decision.Denial})
+	c.Set(service.ClientPolicyDenialContextKey, service.ClientPolicyDenialEvent{UserAgent: userAgent, CreatedAt: time.Now().UTC(), GroupID: groupID, Snapshot: *decision.Denial})
 }

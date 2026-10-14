@@ -1,5 +1,11 @@
 export default {
   clientAccess: {
+    userAgentFiltered: 'Provided, but empty after sanitization',
+    userAgentMissing: 'Not provided',
+    recognition_user_agent_missing: 'No User-Agent was provided and no enabled client rule matched.',
+    recognition_no_matching_rule: 'User-Agent was provided, but no enabled client rule matched. Check the client identity and matching conditions.',
+    recognition_matched_registered_client: 'An enabled client rule matched; the group policy denied access.',
+
     createdAt: 'Created',
     updatedAt: 'Updated',
     historyUnknown: 'Not recorded historically',

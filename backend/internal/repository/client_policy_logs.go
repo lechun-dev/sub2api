@@ -37,7 +37,7 @@ func (r *opsRepository) ListClientPolicyDenials(ctx context.Context, filter serv
 	}
 	args = append(args, size, (page-1)*size)
 	// 2026-10-14 coder(lq): 查询时一次关联当前用户名；已删除或缺失账号仍保留日志，不回退到邮箱或用户 ID。
-	rows, err := r.db.QueryContext(ctx, `SELECT l.id,l.created_at,l.group_id,l.user_id,l.api_key_id,COALESCE(host(l.client_ip),''),COALESCE(l.request_id,''),COALESCE(l.request_path,''),COALESCE(l.error_body,''),COALESCE(u.username,'') FROM ops_error_logs l LEFT JOIN users u ON u.id = l.user_id AND u.deleted_at IS NULL `+where+` ORDER BY l.created_at DESC,l.id DESC LIMIT $5 OFFSET $6`, args...)
+	rows, err := r.db.QueryContext(ctx, `SELECT l.id,l.created_at,l.group_id,l.user_id,l.api_key_id,COALESCE(host(l.client_ip),''),COALESCE(l.request_id,''),COALESCE(l.request_path,''),COALESCE(l.error_body,''),COALESCE(u.username,''),COALESCE(l.user_agent,'') FROM ops_error_logs l LEFT JOIN users u ON u.id = l.user_id AND u.deleted_at IS NULL `+where+` ORDER BY l.created_at DESC,l.id DESC LIMIT $5 OFFSET $6`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -46,10 +46,11 @@ func (r *opsRepository) ListClientPolicyDenials(ctx context.Context, filter serv
 		row := &service.ClientPolicyDenialLog{}
 		var user, key sql.NullInt64
 		var raw string
-		if err := rows.Scan(&row.ID, &row.CreatedAt, &row.GroupID, &user, &key, &row.ClientIP, &row.RequestID, &row.RequestPath, &raw, &row.Username); err != nil {
+		if err := rows.Scan(&row.ID, &row.CreatedAt, &row.GroupID, &user, &key, &row.ClientIP, &row.RequestID, &row.RequestPath, &raw, &row.Username, &row.UserAgent); err != nil {
 			return nil, err
 		}
 		row.Username = strings.TrimSpace(row.Username)
+		row.UserAgent = service.SanitizeClientPolicyUserAgent(row.UserAgent)
 		if user.Valid {
 			row.UserID = &user.Int64
 		}

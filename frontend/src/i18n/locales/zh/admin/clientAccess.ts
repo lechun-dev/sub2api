@@ -1,5 +1,11 @@
 export default {
   clientAccess: {
+    userAgentFiltered: '已携带，内容经脱敏或清理后为空',
+    userAgentMissing: '未携带',
+    recognition_user_agent_missing: '请求未携带 User-Agent，且未命中任何已启用客户端规则。',
+    recognition_no_matching_rule: '已携带 User-Agent，但未命中任何已启用客户端规则。请核对客户端标识和识别条件。',
+    recognition_matched_registered_client: '已命中已启用客户端识别规则，因当前分组策略被拒绝。',
+
     createdAt: '创建日期',
     updatedAt: '更新日期',
     historyUnknown: '历史未记录',

@@ -210,8 +210,16 @@ func EvaluateClientAccess(cfg *ClientAccessConfig, groupID int64, headers http.H
 		matchedSelected = matchedSelected || (matched && selected[client.ID])
 	}
 	denied := func(code, message string) ClientAccessDecision {
+		userAgentPresent := strings.TrimSpace(headers.Get("User-Agent")) != ""
+		recognitionReason := "matched_registered_client"
+		if !recognized {
+			recognitionReason = "no_matching_rule"
+			if !userAgentPresent {
+				recognitionReason = "user_agent_missing"
+			}
+		}
 		return ClientAccessDecision{Code: code, Message: message, Denial: &ClientPolicySnapshot{
-			Code: code, Mode: policy.Mode, DetectedClients: boundedPolicyClients(detectedClients), SelectedClients: boundedPolicyClients(selectedClients),
+			UserAgentPresent: &userAgentPresent, RecognitionReason: recognitionReason, Code: code, Mode: policy.Mode, DetectedClients: boundedPolicyClients(detectedClients), SelectedClients: boundedPolicyClients(selectedClients),
 			DetectedCount: len(detectedClients), SelectedCount: len(selectedClients), PolicyUpdatedAt: policy.UpdatedAt,
 		}}
 	}

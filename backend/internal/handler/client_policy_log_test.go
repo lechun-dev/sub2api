@@ -62,3 +62,15 @@ func TestClientPolicyDenialLogDisabledSkipsQueue(t *testing.T) {
 	recordClientPolicyDenial(ops, c, service.ClientPolicyDenialEvent{CreatedAt: time.Now(), GroupID: 38, Snapshot: service.ClientPolicySnapshot{Code: "client_forbidden"}})
 	require.Zero(t, OpsErrorLogQueueLength())
 }
+
+func TestClientPolicyDenialLogUsesBoundedEventUserAgent(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/responses", nil)
+	c.Request.Header.Set("User-Agent", "changed-after-denial")
+	event := service.ClientPolicyDenialEvent{UserAgent: "curl/8 Bearer event-secret", CreatedAt: time.Now(), GroupID: 38}
+	entry := buildClientPolicyDenialLog(c, event)
+	require.Contains(t, entry.UserAgent, "curl/8")
+	require.NotContains(t, entry.UserAgent, "event-secret")
+	require.NotContains(t, entry.UserAgent, "changed-after-denial")
+	require.LessOrEqual(t, len(entry.UserAgent), 512)
+}

@@ -21,11 +21,13 @@
             <div class="flex flex-wrap justify-between gap-2"><strong>{{ formatDateTimeToMinute(item.created_at) }}</strong><span class="text-gray-500">#{{ item.id }} · HTTP 403</span></div>
             <template v-if="item.snapshot">
               <p class="font-medium">{{ t(`admin.clientAccess.reason_${item.snapshot.code}`) }}</p>
+              <p v-if="item.snapshot.recognition_reason" class="text-sm text-gray-500">{{ recognitionReason(item.snapshot.recognition_reason) }}</p>
               <p>{{ t('admin.clientAccess.detectedClient') }}: {{ clients(item.snapshot.detected_clients, item.snapshot.detected_count) }}</p>
               <p>{{ t('admin.clientAccess.policyAtDenial') }}: {{ t(`admin.clientAccess.${item.snapshot.mode}`) }} · {{ clients(item.snapshot.selected_clients, item.snapshot.selected_count) }}</p>
               <p class="text-xs text-gray-500">{{ t('admin.clientAccess.updatedAt') }}: {{ item.snapshot.policy_updated_at ? formatDateTimeToMinute(item.snapshot.policy_updated_at) : t('admin.clientAccess.historyUnknown') }}</p>
             </template>
             <p v-else>{{ t('admin.clientAccess.snapshotUnavailable') }}</p>
+            <p class="text-xs text-gray-500 break-all"><strong>User-Agent:</strong> {{ userAgentLabel(item) }}</p>
             <dl class="grid gap-2 sm:grid-cols-2 text-xs text-gray-500 break-all">
               <div><dt class="inline">{{ t('admin.clientAccess.logUser') }}: </dt><dd class="inline">{{ item.username?.trim() || t('admin.clientAccess.userUnavailable') }}</dd></div>
               <div><dt class="inline">API Key ID: </dt><dd class="inline">{{ item.api_key_id ?? '—' }}</dd></div>
@@ -65,6 +67,15 @@ let sequence = 0
 function clients(values: { name: string }[], count: number): string {
   const names = values.map(value => value.name).join('、') || t('admin.clientAccess.unrecognizedClient')
   return count > values.length ? t('admin.clientAccess.moreClients', { names, count }) : names
+}
+function userAgentLabel(item: ClientPolicyDenialLog): string {
+  if (item.user_agent) return item.user_agent
+  if (item.snapshot?.user_agent_present === true) return t('admin.clientAccess.userAgentFiltered')
+  if (item.snapshot?.user_agent_present === false || item.snapshot?.recognition_reason === 'user_agent_missing') return t('admin.clientAccess.userAgentMissing')
+  return t('admin.clientAccess.historyUnknown')
+}
+function recognitionReason(reason: string): string {
+  return ['user_agent_missing', 'no_matching_rule', 'matched_registered_client'].includes(reason) ? t(`admin.clientAccess.recognition_${reason}`) : t('admin.clientAccess.historyUnknown')
 }
 async function load() {
   // 2026-10-14 coder(lq): 日期分页固定查询快照，切换范围/分组取消旧请求并阻止迟到响应覆盖。

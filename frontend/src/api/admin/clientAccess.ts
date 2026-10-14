@@ -43,6 +43,8 @@ export function policyPreview(policy: GroupClientPolicy, clients: ClientDefiniti
 }
 
 export interface ClientPolicySnapshot {
+  user_agent_present?: boolean
+  recognition_reason?: 'user_agent_missing' | 'no_matching_rule' | 'matched_registered_client'
   code: 'client_not_allowed' | 'client_unrecognized' | 'client_forbidden'
   mode: 'allow' | 'deny'
   detected_clients: { id: string; name: string }[]
@@ -55,6 +57,7 @@ export interface ClientPolicyDenialLog {
   id: number
   created_at: string
   group_id: number
+  user_agent?: string
   username: string
   user_id?: number
   api_key_id?: number
