@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -47,12 +48,15 @@ func GroupClientAccess(settings *service.SettingService) gin.HandlerFunc {
 					if err != nil {
 						return service.ClientAccessDecision{}, err
 					}
-					return service.EvaluateClientAccess(next, groupID, headers), nil
+					decision := service.EvaluateClientAccess(next, groupID, headers)
+					markClientPolicyDenial(c, groupID, decision)
+					return decision, nil
 				}))
 			}
 			c.Next()
 			return
 		}
+		markClientPolicyDenial(c, key.Group.ID, decision)
 		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalPolicyDenied)
 		MarkIngressRejected(c, IngressRejectClientPolicyDenied)
 		writeClientAccessError(c, http.StatusForbidden, decision.Code, decision.Message)
@@ -71,4 +75,12 @@ func writeClientAccessError(c *gin.Context, status int, code, message string) {
 		errorType = "api_error"
 	}
 	c.AbortWithStatusJSON(status, gin.H{"type": "error", "error": gin.H{"type": errorType, "code": code, "message": message}})
+}
+
+// 2026-10-14 coder(lq): 只登记已确定的策略拒绝，不记录请求体/头；WS 使用握手时原始分组，避免路由改写后归错组。
+func markClientPolicyDenial(c *gin.Context, groupID int64, decision service.ClientAccessDecision) {
+	if decision.Allowed || decision.Denial == nil {
+		return
+	}
+	c.Set(service.ClientPolicyDenialContextKey, service.ClientPolicyDenialEvent{CreatedAt: time.Now().UTC(), GroupID: groupID, Snapshot: *decision.Denial})
 }
