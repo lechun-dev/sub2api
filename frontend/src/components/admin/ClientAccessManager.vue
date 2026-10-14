@@ -19,6 +19,8 @@
           <div><h2 class="text-lg font-semibold">{{ currentGroup.name }}</h2><p class="mt-1 text-sm text-gray-500">{{ t('admin.clientAccess.groupId') }}: {{ currentGroup.id }}</p></div>
           <RouterLink :to="{ path: '/admin/client-access', query: { tab: 'clients' } }" class="btn btn-secondary">{{ t('admin.clientAccess.manageClients') }}</RouterLink>
         </div>
+        <ClientPolicyDates v-if="config.groups[selectedGroup]" :policy="config.groups[selectedGroup]" />
+        <button type="button" class="btn btn-secondary" data-testid="group-policy-logs" @click="logGroup = { id: selectedGroup, name: currentGroup.name }">{{ t('admin.clientAccess.logs') }}</button>
         <GroupClientPolicyEditor v-model="draft" :clients="config.clients" :saving="saving || needsReload" :dirty="policyDirty" :can-save="true" scoped @save="savePolicy" />
       </section>
       <template v-else-if="!scoped">
@@ -37,8 +39,8 @@
           <p v-else-if="filteredPolicies.length === 0" class="text-sm text-gray-500">{{ t('admin.clientAccess.noMatches') }}</p>
           <ul v-else class="divide-y divide-gray-200 dark:divide-dark-600">
             <li v-for="entry in filteredPolicies" :key="entry.id" class="flex flex-wrap items-center justify-between gap-3 py-4" :data-policy-id="entry.id">
-              <div class="min-w-0 space-y-1"><h3 class="font-medium break-words">{{ entry.name }} <span class="text-xs text-gray-500">ID {{ entry.id }}</span></h3><p class="text-sm">{{ t(`admin.clientAccess.${entry.policy.mode}`) }}</p><p class="text-sm text-gray-500 break-words">{{ policyPreview(entry.policy, config.clients) }}</p></div>
-              <div class="flex gap-2"><button type="button" class="btn btn-secondary" :disabled="saving || needsReload || !entry.exists" @click="openEditor(entry.id)">{{ t('common.edit') }}</button><button type="button" class="btn btn-secondary" :disabled="saving || needsReload" @click="removePolicy(entry.id, entry.name)">{{ t('admin.clientAccess.removePolicy') }}</button></div>
+              <div class="min-w-0 space-y-1"><h3 class="font-medium break-words">{{ entry.name }} <span class="text-xs text-gray-500">ID {{ entry.id }}</span></h3><p class="text-sm">{{ t(`admin.clientAccess.${entry.policy.mode}`) }}</p><p class="text-sm text-gray-500 break-words">{{ policyPreview(entry.policy, config.clients) }}</p><ClientPolicyDates :policy="entry.policy" /></div>
+              <div class="flex flex-wrap gap-2"><button type="button" class="btn btn-secondary" :disabled="saving || needsReload || !entry.exists" @click="openEditor(entry.id)">{{ t('common.edit') }}</button><button type="button" class="btn btn-secondary" :disabled="saving || needsReload" @click="removePolicy(entry.id, entry.name)">{{ t('admin.clientAccess.removePolicy') }}</button><button type="button" class="btn btn-secondary" data-testid="policy-logs" @click="logGroup = { id: entry.id, name: entry.name }">{{ t('admin.clientAccess.logs') }}</button></div>
             </li>
           </ul>
         </section>
@@ -54,6 +56,7 @@
         </BaseDialog>
       </template>
     </template>
+  <ClientPolicyDenialLogs v-if="logGroup" :group-id="logGroup.id" :group-name="logGroup.name" @close="logGroup = null" />
   </section>
 </template>
 
@@ -69,6 +72,8 @@ import type { AdminGroup } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ClientRegistryEditor from './ClientRegistryEditor.vue'
 import GroupClientPolicyEditor from './GroupClientPolicyEditor.vue'
+import ClientPolicyDates from './ClientPolicyDates.vue'
+import ClientPolicyDenialLogs from './ClientPolicyDenialLogs.vue'
 
 const props = defineProps<{ groupId?: string; initialTab?: string }>()
 const { t } = useI18n()
@@ -82,6 +87,7 @@ const draft = ref<GroupClientPolicy>(off())
 const draftBaseline = ref(JSON.stringify(off()))
 const activeTab = ref<'policies' | 'clients'>(props.initialTab === 'clients' ? 'clients' : 'policies')
 const registry = ref<InstanceType<typeof ClientRegistryEditor> | null>(null)
+const logGroup = ref<{ id: string; name: string } | null>(null)
 const search = ref('')
 const loading = ref(true)
 const saving = ref(false)

@@ -1091,6 +1091,13 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 		c.Next()
 		w.finalizeCapture()
 
+		// 2026-10-14 coder(lq): 仅客户端策略拒绝登记安全专用明细；其余鉴权拒绝仍仅汇总，不恢复响应体捕获。
+		if value, exists := c.Get(service.ClientPolicyDenialContextKey); exists {
+			if event, ok := value.(service.ClientPolicyDenialEvent); ok {
+				recordClientPolicyDenial(ops, c, event)
+			}
+			return
+		}
 		if _, rejected := middleware2.GetIngressRejectReason(c); rejected {
 			return
 		}

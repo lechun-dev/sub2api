@@ -37,8 +37,10 @@ type ClientDefinition struct {
 }
 
 type GroupClientPolicy struct {
-	Mode      string   `json:"mode"`
-	ClientIDs []string `json:"client_ids"`
+	Mode      string     `json:"mode"`
+	ClientIDs []string   `json:"client_ids"`
+	CreatedAt *time.Time `json:"created_at,omitempty"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
 }
 
 type ClientAccessConfig struct {
@@ -51,6 +53,7 @@ type ClientAccessDecision struct {
 	Allowed bool
 	Code    string
 	Message string
+	Denial  *ClientPolicySnapshot
 }
 
 type clientAccessWriter interface {
@@ -192,21 +195,32 @@ func EvaluateClientAccess(cfg *ClientAccessConfig, groupID int64, headers http.H
 		selected[id] = true
 	}
 	names := []string{}
+	selectedClients, detectedClients := []ClientPolicyClient{}, []ClientPolicyClient{}
 	matchedSelected, recognized := false, false
 	for _, client := range cfg.Clients {
 		if selected[client.ID] {
 			names = append(names, client.Name)
+			selectedClients = append(selectedClients, ClientPolicyClient{ID: client.ID, Name: client.Name})
 		}
 		matched := ClientDefinitionMatches(client, headers)
+		if matched {
+			detectedClients = append(detectedClients, ClientPolicyClient{ID: client.ID, Name: client.Name})
+		}
 		recognized = recognized || matched
 		matchedSelected = matchedSelected || (matched && selected[client.ID])
+	}
+	denied := func(code, message string) ClientAccessDecision {
+		return ClientAccessDecision{Code: code, Message: message, Denial: &ClientPolicySnapshot{
+			Code: code, Mode: policy.Mode, DetectedClients: boundedPolicyClients(detectedClients), SelectedClients: boundedPolicyClients(selectedClients),
+			DetectedCount: len(detectedClients), SelectedCount: len(selectedClients), PolicyUpdatedAt: policy.UpdatedAt,
+		}}
 	}
 	// 2026-10-13 coder(lq): 不把客户端识别降成“取第一个命中”，避免重叠规则绕过黑名单。
 	if policy.Mode == "deny" {
 		if !matchedSelected {
 			return ClientAccessDecision{Allowed: true}
 		}
-		return ClientAccessDecision{Code: "client_forbidden", Message: "当前 API Key 所属分组禁止使用：" + strings.Join(names, "、") + "。请更换客户端后重试。"}
+		return denied("client_forbidden", "当前 API Key 所属分组禁止使用："+strings.Join(names, "、")+"。请更换客户端后重试。")
 	}
 	if matchedSelected {
 		return ClientAccessDecision{Allowed: true}
@@ -215,7 +229,7 @@ func EvaluateClientAccess(cfg *ClientAccessConfig, groupID int64, headers http.H
 	if !recognized {
 		code, prefix = "client_unrecognized", "未能识别当前客户端。"
 	}
-	return ClientAccessDecision{Code: code, Message: prefix + "当前 API Key 所属分组仅允许使用：" + strings.Join(names, "、") + "。请切换到允许的客户端后重试。"}
+	return denied(code, prefix+"当前 API Key 所属分组仅允许使用："+strings.Join(names, "、")+"。请切换到允许的客户端后重试。")
 }
 
 func (s *SettingService) readClientAccess(ctx context.Context) (*ClientAccessConfig, string, error) {
@@ -284,6 +298,7 @@ func (s *SettingService) SaveClientAccessConfig(ctx context.Context, cfg ClientA
 		id, _ := strconv.ParseInt(key, 10, 64)
 		groupIDs = append(groupIDs, id)
 	}
+	stampClientPolicyDates(&cfg, current, time.Now().UTC())
 	cfg.Revision = ""
 	value, err := json.Marshal(cfg)
 	if err != nil {

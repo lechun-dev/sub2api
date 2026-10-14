@@ -72,6 +72,9 @@ func clientAccessGroupValue(raw string, sourceID, targetID int64) (string, bool,
 	if targetID == 0 {
 		delete(cfg.Groups, key)
 	} else {
+		// 2026-10-14 coder(lq): 复制产生新策略，不能沿用源分组的创建/更新时间。
+		now := time.Now().UTC()
+		policy.CreatedAt, policy.UpdatedAt = &now, &now
 		cfg.Groups[strconv.FormatInt(targetID, 10)] = policy
 	}
 	cfg.Revision = ""

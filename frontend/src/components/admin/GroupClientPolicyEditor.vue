@@ -39,7 +39,7 @@ const emit = defineEmits<{ 'update:modelValue': [policy: GroupClientPolicy]; sav
 const { t } = useI18n()
 const preview = computed(() => t(`admin.clientAccess.${props.modelValue.mode}Preview`, { clients: policyPreview(props.modelValue, props.clients) || t('admin.clientAccess.noneSelected') }))
 function setMode(mode: GroupClientPolicy['mode']) {
-  emit('update:modelValue', { mode, client_ids: mode === 'off' ? [] : props.modelValue.client_ids.slice() })
+  emit('update:modelValue', { ...props.modelValue, mode, client_ids: mode === 'off' ? [] : props.modelValue.client_ids.slice() })
 }
 function toggleClient(id: string, checked: boolean) {
   emit('update:modelValue', { ...props.modelValue, client_ids: checked ? [...new Set([...props.modelValue.client_ids, id])] : props.modelValue.client_ids.filter(value => value !== id) })

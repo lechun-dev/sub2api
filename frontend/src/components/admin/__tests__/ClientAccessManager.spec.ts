@@ -5,8 +5,8 @@ import messages from '@/i18n/locales/zh/admin/clientAccess'
 import { policyPreview, referencingGroups } from '@/api/admin/clientAccess'
 import type { ClientAccessConfig } from '@/api/admin/clientAccess'
 
-const mocks = vi.hoisted(() => ({ get: vi.fn(), save: vi.fn(), groups: vi.fn(), success: vi.fn() }))
-vi.mock('@/api/admin/clientAccess', async importOriginal => ({ ...(await importOriginal<object>()), getClientAccess: mocks.get, saveClientAccess: mocks.save }))
+const mocks = vi.hoisted(() => ({ get: vi.fn(), save: vi.fn(), groups: vi.fn(), logs: vi.fn(), success: vi.fn() }))
+vi.mock('@/api/admin/clientAccess', async importOriginal => ({ ...(await importOriginal<object>()), getClientAccess: mocks.get, saveClientAccess: mocks.save, getClientPolicyDenials: mocks.logs }))
 vi.mock('@/api/admin/groups', () => ({ getAllIncludingInactive: mocks.groups }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => ({ showSuccess: mocks.success }) }))
 vi.mock('vue-i18n', async importOriginal => ({ ...(await importOriginal<object>()), useI18n: () => ({ t: (key: string, params: Record<string, string | number> = {}) => {
@@ -25,6 +25,7 @@ function config(): ClientAccessConfig {
 }
 beforeEach(() => {
   vi.resetAllMocks()
+  mocks.logs.mockResolvedValue({ items: [], total: 0 })
   let stored = config()
   mocks.get.mockImplementation(async () => structuredClone(stored))
   mocks.groups.mockResolvedValue([{ id: 38, name: '开发组' }, { id: 99, name: '另一组' }])
@@ -44,6 +45,22 @@ const selectMode = async (wrapper: Awaited<ReturnType<typeof open>>, mode: strin
 const submit = async (wrapper: Awaited<ReturnType<typeof open>>) => { await wrapper.get('form').trigger('submit'); await flushPromises() }
 
 describe('ClientAccessManager', () => {
+  it('opens scoped group logs without changing or saving the draft', async () => {
+    const wrapper = await open()
+    await wrapper.get('[data-testid="group-policy-logs"]').trigger('click')
+    await flushPromises()
+    expect(mocks.logs.mock.calls[0][0].group_id).toBe('38')
+    expect(mocks.save).not.toHaveBeenCalled()
+    expect(wrapper.vm.dirty).toBe(false)
+  })
+  it('opens global policy logs for the row group', async () => {
+    const wrapper = await open({})
+    await wrapper.get('[data-policy-id="38"] [data-testid="policy-logs"]').trigger('click')
+    await flushPromises()
+    expect(mocks.logs.mock.calls[0][0].group_id).toBe('38')
+    expect(wrapper.text()).toContain('拦截日志 · 开发组（ID 38）')
+  })
+
   it('opens the current group directly without a group picker or registry', async () => {
     const wrapper = await open()
     expect(wrapper.get('h1').text()).toBe('客户端访问限制 · 开发组')
