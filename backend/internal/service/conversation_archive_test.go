@@ -294,6 +294,14 @@ func (r *recordingConversationArchiveRepo) DeleteBefore(context.Context, time.Ti
 	return 0, nil
 }
 
+func (r *recordingConversationArchiveRepo) List(context.Context, ConversationArchiveFilter) ([]*ConversationArchive, int64, error) {
+	return nil, 0, nil
+}
+
+func (r *recordingConversationArchiveRepo) GetByID(context.Context, int64) (*ConversationArchive, error) {
+	return nil, nil
+}
+
 func (r *recordingConversationArchiveRepo) snapshot() []*ConversationArchive {
 	r.mu.Lock()
 	defer r.mu.Unlock()

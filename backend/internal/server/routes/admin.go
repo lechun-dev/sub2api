@@ -134,6 +134,19 @@ func RegisterAdminRoutes(
 
 		// 操作审计日志
 		registerAuditLogRoutes(admin, h, stepUpAuth)
+
+		// 会话存档（只读，敏感内容）
+		registerConversationArchiveRoutes(admin, h)
+	}
+}
+
+// registerConversationArchiveRoutes 注册会话存档只读查询接口。
+// 默认仅管理员可访问；受限管理密钥需要在权限策略中包含 conversation_archive.read。
+func registerConversationArchiveRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	archives := admin.Group("/conversation-archives")
+	{
+		archives.GET("", h.Admin.ConversationArchive.List)
+		archives.GET("/:id", h.Admin.ConversationArchive.Get)
 	}
 }
 

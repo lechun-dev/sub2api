@@ -40,6 +40,14 @@ func (r *conversationArchiveTestRepo) DeleteBefore(context.Context, time.Time, i
 	return 0, nil
 }
 
+func (r *conversationArchiveTestRepo) List(context.Context, service.ConversationArchiveFilter) ([]*service.ConversationArchive, int64, error) {
+	return nil, 0, nil
+}
+
+func (r *conversationArchiveTestRepo) GetByID(context.Context, int64) (*service.ConversationArchive, error) {
+	return nil, nil
+}
+
 func (r *conversationArchiveTestRepo) snapshot() []*service.ConversationArchive {
 	r.mu.Lock()
 	defer r.mu.Unlock()

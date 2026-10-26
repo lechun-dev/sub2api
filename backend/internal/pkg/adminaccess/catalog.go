@@ -64,6 +64,7 @@ var definitions = []permissionDefinition{
 	{Permission{"ops.errors.resolve", "标记请求错误处理状态", "监控", "global"}, []string{"PUT /ops/errors/:id/resolve", "PUT /ops/request-errors/:id/resolve", "PUT /ops/upstream-errors/:id/resolve"}},
 	{Permission{"ops.alerts.read", "读取全站告警规则与事件", "监控", "global"}, []string{"GET /ops/alert-rules", "GET /ops/alert-events", "GET /ops/alert-events/:id"}},
 	{Permission{"ops.alerts.write", "修改告警规则、状态与静默", "监控", "global"}, []string{"POST /ops/alert-rules", "PUT /ops/alert-rules/:id", "DELETE /ops/alert-rules/:id", "PUT /ops/alert-events/:id/status", "POST /ops/alert-silences"}},
+	{Permission{"conversation_archive.read", "读取会话存档原文（含用户与模型对话，敏感）", "会话", "global"}, []string{"GET /conversation-archives", "GET /conversation-archives/:id"}},
 	{Permission{"system.read", "读取系统版本与可更新版本", "系统", "global"}, []string{"GET /system/version", "GET /system/check-updates", "GET /system/rollback-versions"}},
 }
 

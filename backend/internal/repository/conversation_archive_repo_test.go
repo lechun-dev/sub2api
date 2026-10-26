@@ -70,3 +70,136 @@ func TestConversationArchiveRepositoryDeleteBefore(t *testing.T) {
 	require.Equal(t, int64(3), deleted)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func conversationArchiveListRowColumns(includeContent bool) []string {
+	columns := []string{
+		"id", "request_id", "user_id", "api_key_id", "group_id", "protocol", "endpoint", "model",
+		"stream", "status_code", "session_key", "message_count", "response_chars", "truncated", "created_at",
+	}
+	if includeContent {
+		columns = append(columns, "request_messages", "response_text")
+	}
+	return columns
+}
+
+func TestConversationArchiveRepositoryListFilters(t *testing.T) {
+	t.Parallel()
+
+	db, mock := newSQLMock(t)
+	repo := NewConversationArchiveRepository(db)
+
+	userID := int64(7)
+	filter := service.ConversationArchiveFilter{
+		Page:       1,
+		PageSize:   20,
+		UserID:     &userID,
+		Model:      "claude",
+		Keyword:    "hello",
+		Descending: true,
+	}
+
+	mock.ExpectQuery(`SELECT count\(\*\) FROM conversation_archives WHERE user_id = \$1 AND model = \$2`).
+		WithArgs(int64(7), "claude", "%hello%").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
+	createdAt := time.Now().UTC()
+	rows := sqlmock.NewRows(conversationArchiveListRowColumns(false)).
+		AddRow(1, "req-1", int64(7), int64(9), nil, "anthropic_messages", "/v1/messages", "claude",
+			false, 200, "session-1", 3, 120, false, createdAt)
+	mock.ExpectQuery(`SELECT id, request_id, user_id, api_key_id, group_id, protocol, endpoint, model`).
+		WithArgs(int64(7), "claude", "%hello%", 20, 0).
+		WillReturnRows(rows)
+
+	records, total, err := repo.List(context.Background(), filter)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), total)
+	require.Len(t, records, 1)
+	require.Equal(t, int64(1), records[0].ID)
+	require.Equal(t, int64(7), records[0].UserID)
+	require.Equal(t, int64(9), records[0].APIKeyID)
+	require.Nil(t, records[0].GroupID)
+	require.Equal(t, "session-1", records[0].SessionKey)
+	require.Equal(t, 3, records[0].MessageCount)
+	require.Equal(t, 120, records[0].ResponseChars)
+	require.Empty(t, records[0].Messages)
+	require.Empty(t, records[0].ResponseText)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestConversationArchiveRepositoryListWithContent(t *testing.T) {
+	t.Parallel()
+
+	db, mock := newSQLMock(t)
+	repo := NewConversationArchiveRepository(db)
+
+	filter := service.ConversationArchiveFilter{
+		Page:           1,
+		PageSize:       10,
+		IncludeContent: true,
+	}
+	mock.ExpectQuery(`SELECT count\(\*\) FROM conversation_archives$`).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	rows := sqlmock.NewRows(conversationArchiveListRowColumns(true)).
+		AddRow(2, "req-2", nil, nil, nil, "openai_chat", "/v1/chat/completions", "gpt-5",
+			true, 200, nil, 1, 12, false, time.Now().UTC(),
+			[]byte(`[{"role":"user","content":"hi"}]`), "hello")
+	mock.ExpectQuery(`SELECT id, request_id, user_id, api_key_id, group_id, protocol, endpoint, model`).
+		WithArgs(10, 0).
+		WillReturnRows(rows)
+
+	records, total, err := repo.List(context.Background(), filter)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), total)
+	require.Len(t, records, 1)
+	require.True(t, records[0].Stream)
+	require.Len(t, records[0].Messages, 1)
+	require.Equal(t, "hi", records[0].Messages[0].Content)
+	require.Equal(t, "hello", records[0].ResponseText)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestConversationArchiveRepositoryGetByID(t *testing.T) {
+	t.Parallel()
+
+	db, mock := newSQLMock(t)
+	repo := NewConversationArchiveRepository(db)
+
+	rows := sqlmock.NewRows(conversationArchiveListRowColumns(true)).
+		AddRow(3, "req-3", int64(7), int64(9), int64(2), "gemini", "/v1beta/models/gemini-2.5-pro:generateContent",
+			"gemini-2.5-pro", false, 200, nil, 2, 8, false, time.Now().UTC(),
+			[]byte(`[{"role":"user","content":"hi"}]`), "hello")
+	mock.ExpectQuery(`SELECT id, request_id, user_id, api_key_id, group_id, protocol, endpoint, model`).
+		WithArgs(int64(3)).
+		WillReturnRows(rows)
+
+	record, err := repo.GetByID(context.Background(), 3)
+	require.NoError(t, err)
+	require.NotNil(t, record)
+	require.Equal(t, int64(3), record.ID)
+	require.NotNil(t, record.GroupID)
+	require.Equal(t, int64(2), *record.GroupID)
+	require.Equal(t, "hello", record.ResponseText)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestConversationArchiveRepositoryGetByIDNotFound(t *testing.T) {
+	t.Parallel()
+
+	db, mock := newSQLMock(t)
+	repo := NewConversationArchiveRepository(db)
+
+	mock.ExpectQuery(`SELECT id, request_id`).WithArgs(int64(99)).
+		WillReturnRows(sqlmock.NewRows(conversationArchiveListRowColumns(true)))
+
+	record, err := repo.GetByID(context.Background(), 99)
+	require.NoError(t, err)
+	require.Nil(t, record)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestEscapeConversationArchiveLike(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, `100\%\_test\\`, escapeConversationArchiveLike(`100%_test\`))
+	require.Equal(t, "plain", escapeConversationArchiveLike("plain"))
+}

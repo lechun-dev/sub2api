@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"go.uber.org/zap"
 )
@@ -67,13 +69,89 @@ type ConversationArchive struct {
 	RequestBytes  int                          `json:"request_bytes"`
 	ResponseBytes int                          `json:"response_bytes"`
 	Truncated     bool                         `json:"truncated"`
+	MessageCount  int                          `json:"message_count"`
+	ResponseChars int                          `json:"response_chars"`
 	CreatedAt     time.Time                    `json:"created_at"`
+}
+
+// ConversationArchiveFilter 是管理端查询存档的过筛条件。
+type ConversationArchiveFilter struct {
+	Page       int
+	PageSize   int
+	UserID     *int64
+	APIKeyID   *int64
+	GroupID    *int64
+	RequestID  string
+	SessionKey string
+	Protocol   string
+	Model      string
+	Endpoint   string
+	Keyword    string
+	StatusCode *int
+	Stream     *bool
+	Truncated  *bool
+	StartTime  *time.Time
+	EndTime    *time.Time
+	// IncludeContent 为 false 时只返回元数据与长度，避免管理端列表把大段原文一次拉回。
+	IncludeContent bool
+	// Descending 控制 created_at 排序方向，默认倒序（最新在前）。
+	Descending bool
 }
 
 // ConversationArchiveRepository 持久化会话存档。
 type ConversationArchiveRepository interface {
 	CreateBatch(ctx context.Context, records []*ConversationArchive) error
 	DeleteBefore(ctx context.Context, cutoff time.Time, limit int) (int64, error)
+	List(ctx context.Context, filter ConversationArchiveFilter) ([]*ConversationArchive, int64, error)
+	GetByID(ctx context.Context, id int64) (*ConversationArchive, error)
+}
+
+// ErrConversationArchiveNotFound 表示查询的存档不存在。
+var ErrConversationArchiveNotFound = infraerrors.NotFound("CONVERSATION_ARCHIVE_NOT_FOUND", "会话存档不存在")
+
+const (
+	conversationArchiveListDefaultPageSize = 20
+	conversationArchiveListMaxPageSize     = 100
+	conversationArchiveKeywordMaxRunes     = 200
+)
+
+// List 分页查询会话存档；PageSize 缺省或超限时会被收敛到安全范围。
+func (s *ConversationArchiveService) List(ctx context.Context, filter ConversationArchiveFilter) ([]*ConversationArchive, int64, error) {
+	if s == nil || s.repo == nil {
+		return nil, 0, errors.New("会话存档服务不可用")
+	}
+	if filter.Page <= 0 {
+		filter.Page = 1
+	}
+	if filter.PageSize <= 0 {
+		filter.PageSize = conversationArchiveListDefaultPageSize
+	}
+	if filter.PageSize > conversationArchiveListMaxPageSize {
+		filter.PageSize = conversationArchiveListMaxPageSize
+	}
+	filter.Keyword = strings.TrimSpace(filter.Keyword)
+	if len([]rune(filter.Keyword)) > conversationArchiveKeywordMaxRunes {
+		filter.Keyword = string([]rune(filter.Keyword)[:conversationArchiveKeywordMaxRunes])
+	}
+	return s.repo.List(ctx, filter)
+}
+
+// GetByID 读取单条存档（含完整文本内容）。
+func (s *ConversationArchiveService) GetByID(ctx context.Context, id int64) (*ConversationArchive, error) {
+	if s == nil || s.repo == nil {
+		return nil, errors.New("会话存档服务不可用")
+	}
+	if id <= 0 {
+		return nil, ErrConversationArchiveNotFound
+	}
+	record, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if record == nil {
+		return nil, ErrConversationArchiveNotFound
+	}
+	return record, nil
 }
 
 // ConversationArchiveCaptureInput 是中间件交给服务组装归档记录的原始数据。

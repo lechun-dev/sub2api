@@ -83,3 +83,83 @@ ORDER BY created_at;
 - 不记录凭据、请求头、Cookie、URL 参数与响应字节原文，只落解析后的文本与元数据。
 - 保留期到期自动删除；多实例并发清理幂等。
 - 该表是「尽力而为」的分析副本：队列溢出、请求超限、客户端断连都可能造成缺失，不能当作审计流水使用（审计请用 `audit_logs` / `prompt_audit_events`）。
+
+## 查询接口（管理员 / AI 只读）
+
+### 鉴权
+
+三个管理端入口二选一，**其他身份一律 401/403**：
+
+| 方式 | 请求头 | 说明 |
+|---|---|---|
+| 管理员 JWT | `Authorization: Bearer <jwt>` | 用户角色必须为 admin |
+| 管理员 API Key | `x-api-key: <admin-api-key>` | 系统设置里的全权管理密钥 |
+| 受限管理密钥 | `x-api-key: adm_sc_...` | 权限策略必须包含 `conversation_archive.read` |
+
+权限是 deny-by-default：新路由未登记到 `adminaccess` 目录时受限密钥直接 403；本接口已登记为全局权限 `conversation_archive.read`（分类「会话」）。每次读取都会写入审计日志（动作 `admin.conversation_archives.read`）。
+
+### 列表
+
+```
+GET /api/v1/admin/conversation-archives
+```
+
+| 参数 | 类型 | 说明 |
+|---|---|---|
+| `page` / `page_size` | int | 默认 1 / 20，`page_size` 上限 100 |
+| `user_id` / `api_key_id` / `group_id` | int64 | 精确匹配 |
+| `request_id` | string | 与 usage_logs 关联 |
+| `session_key` | string | 会话串联键 |
+| `protocol` | enum | `anthropic_messages` / `openai_chat` / `openai_responses` / `gemini` |
+| `model` | string | 精确匹配（区分大小写） |
+| `endpoint` | string | 精确匹配，如 `/v1/messages` |
+| `status_code` | int | 100–599 |
+| `stream` | bool | 是否 SSE |
+| `truncated` | bool | 是否被截断 |
+| `start_time` / `end_time` | string | RFC3339（`2026-10-01T00:00:00Z`）或 `YYYY-MM-DD`（UTC 零点） |
+| `keyword`（别名 `q`） | string | 在请求消息与回复文本中做 ILIKE 匹配，上限 200 字；建议配合时间范围 |
+| `include_content` | bool | 默认 `false`，只返回元数据与长度；`true` 时带 `request_messages` / `response_text` |
+| `order` | `asc`/`desc` | 按 `created_at`，默认 `desc` |
+
+返回：`code=0`，`data.items[]` 含 `id/request_id/user_id/api_key_id/group_id/protocol/endpoint/model/stream/status_code/session_key/message_count/response_chars/truncated/created_at`；`include_content=true` 时额外返回 `request_messages` 与 `response_text`。
+
+### 详情
+
+```
+GET /api/v1/admin/conversation-archives/:id
+```
+
+始终返回完整 `request_messages` 与 `response_text`；不存在返回 404。
+
+### 调用示例
+
+```bash
+# 某用户最近 7 天的对话（不含正文）
+curl -sG https://your-host/api/v1/admin/conversation-archives \
+  -H "x-api-key: $ADMIN_KEY" \
+  --data-urlencode "user_id=42" \
+  --data-urlencode "start_time=2026-10-19T00:00:00Z" \
+  --data-urlencode "page_size=50"
+
+# 按关键词搜索并直接取正文
+curl -sG https://your-host/api/v1/admin/conversation-archives \
+  -H "x-api-key: $ADMIN_KEY" \
+  --data-urlencode "keyword=退款" \
+  --data-urlencode "protocol=openai_chat" \
+  --data-urlencode "include_content=true" \
+  --data-urlencode "page_size=20"
+
+# 按会话串起多轮
+curl -sG https://your-host/api/v1/admin/conversation-archives \
+  -H "x-api-key: $ADMIN_KEY" \
+  --data-urlencode "session_key=$SESSION" \
+  --data-urlencode "include_content=true" \
+  --data-urlencode "order=asc"
+```
+
+### AI 使用建议
+
+1. 先不带 `include_content` 翻页，按元数据定位候选记录，减少上下文占用。
+2. 对候选记录用详情接口（或小页 `include_content=true`）取原文。
+3. `keyword` 是 `ILIKE '%...%'`，大表上请始终带 `start_time`/`end_time` 或用户维度，避免全表扫描。
+4. `truncated=true` 表示内容被截断（请求超 1 MiB 会整条放弃，不会出现半条对话）。
