@@ -77,3 +77,32 @@ func TestAdminFindAPIKeysByEmailRepoError(t *testing.T) {
 	_, _, err := svc.FindAPIKeysByEmail(context.Background(), "zhang@example.com", "")
 	require.ErrorIs(t, err, boom)
 }
+
+func TestAdminFindUserByEmail(t *testing.T) {
+	t.Parallel()
+
+	userRepo := &apiKeyLookupUserRepo{user: &User{ID: 7, Email: "zhang@example.com", Role: RoleAdmin}}
+	svc := &adminServiceImpl{userRepo: userRepo}
+
+	user, err := svc.FindUserByEmail(context.Background(), "  zhang@example.com  ")
+	require.NoError(t, err)
+	require.Equal(t, int64(7), user.ID)
+	require.True(t, user.IsAdmin())
+	require.Equal(t, "zhang@example.com", userRepo.seenEmail)
+}
+
+func TestAdminFindUserByEmailRequiresEmail(t *testing.T) {
+	t.Parallel()
+
+	svc := &adminServiceImpl{userRepo: &apiKeyLookupUserRepo{}}
+	_, err := svc.FindUserByEmail(context.Background(), "  ")
+	require.Error(t, err)
+}
+
+func TestAdminFindUserByEmailNotFound(t *testing.T) {
+	t.Parallel()
+
+	svc := &adminServiceImpl{userRepo: &apiKeyLookupUserRepo{err: ErrUserNotFound}}
+	_, err := svc.FindUserByEmail(context.Background(), "missing@example.com")
+	require.ErrorIs(t, err, ErrUserNotFound)
+}

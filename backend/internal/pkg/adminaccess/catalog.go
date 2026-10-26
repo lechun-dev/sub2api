@@ -66,6 +66,7 @@ var definitions = []permissionDefinition{
 	{Permission{"ops.alerts.write", "修改告警规则、状态与静默", "监控", "global"}, []string{"POST /ops/alert-rules", "PUT /ops/alert-rules/:id", "DELETE /ops/alert-rules/:id", "PUT /ops/alert-events/:id/status", "POST /ops/alert-silences"}},
 	{Permission{"conversation_archive.read", "读取会话存档原文（含用户与模型对话，敏感）", "会话", "global"}, []string{"GET /conversation-archives", "GET /conversation-archives/:id"}},
 	{Permission{"api_keys.read_by_email", "按邮箱查询用户 API Key（含明文密钥）", "密钥", "global"}, []string{"GET /api-keys/by-email"}},
+	{Permission{"users.read_by_email", "按邮箱查询用户资料与管理员标记", "用户", "global"}, []string{"GET /users/by-email"}},
 	{Permission{"system.read", "读取系统版本与可更新版本", "系统", "global"}, []string{"GET /system/version", "GET /system/check-updates", "GET /system/rollback-versions"}},
 }
 

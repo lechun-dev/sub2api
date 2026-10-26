@@ -224,6 +224,36 @@ func parseAttributeFilters(c *gin.Context) map[int64]string {
 
 // GetByID handles getting a user by ID
 // GET /api/v1/admin/users/:id
+// GetByEmail 按邮箱精确查询用户，并返回其管理员标记；供内部系统做身份校验。
+// GET /api/v1/admin/users/by-email?email=user@example.com
+func (h *UserHandler) GetByEmail(c *gin.Context) {
+	lookup, ok := h.adminService.(service.UserByEmailLookup)
+	if !ok {
+		response.InternalError(c, "admin user lookup is unavailable")
+		return
+	}
+	email := strings.TrimSpace(c.Query("email"))
+	if email == "" {
+		response.BadRequest(c, "email is required")
+		return
+	}
+	user, err := lookup.FindUserByEmail(c.Request.Context(), email)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{
+		"user": gin.H{
+			"id":       user.ID,
+			"username": user.Username,
+			"email":    user.Email,
+			"role":     user.Role,
+			"status":   user.Status,
+		},
+		"is_admin": user.IsAdmin(),
+	})
+}
+
 func (h *UserHandler) GetByID(c *gin.Context) {
 	userID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
