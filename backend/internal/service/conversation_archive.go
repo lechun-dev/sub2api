@@ -56,6 +56,8 @@ type ConversationArchive struct {
 	ID            int64                        `json:"id"`
 	RequestID     string                       `json:"request_id"`
 	UserID        int64                        `json:"user_id"`
+	Username      string                       `json:"username,omitempty"`
+	Email         string                       `json:"email,omitempty"`
 	APIKeyID      int64                        `json:"api_key_id"`
 	GroupID       *int64                       `json:"group_id,omitempty"`
 	Protocol      string                       `json:"protocol"`
@@ -81,6 +83,8 @@ type ConversationArchiveFilter struct {
 	UserID     *int64
 	APIKeyID   *int64
 	GroupID    *int64
+	// UserName 按用户姓名（用户名或邮箱）模糊匹配。
+	UserName   string
 	RequestID  string
 	SessionKey string
 	Protocol   string

@@ -108,6 +108,7 @@ GET /api/v1/admin/conversation-archives
 |---|---|---|
 | `page` / `page_size` | int | 默认 1 / 20，`page_size` 上限 100 |
 | `user_id` / `api_key_id` / `group_id` | int64 | 精确匹配 |
+| `username`（别名 `name`） | string | 按用户姓名模糊查询：匹配 `users.username` 或 `users.email`（ILIKE，最多 100 字） |
 | `request_id` | string | 与 usage_logs 关联 |
 | `session_key` | string | 会话串联键 |
 | `protocol` | enum | `anthropic_messages` / `openai_chat` / `openai_responses` / `gemini` |
@@ -121,7 +122,9 @@ GET /api/v1/admin/conversation-archives
 | `include_content` | bool | 默认 `false`，只返回元数据与长度；`true` 时带 `request_messages` / `response_text` |
 | `order` | `asc`/`desc` | 按 `created_at`，默认 `desc` |
 
-返回：`code=0`，`data.items[]` 含 `id/request_id/user_id/api_key_id/group_id/protocol/endpoint/model/stream/status_code/session_key/message_count/response_chars/truncated/created_at`；`include_content=true` 时额外返回 `request_messages` 与 `response_text`。
+返回：`code=0`，`data.items[]` 含 `id/request_id/user_id/username/email/api_key_id/group_id/protocol/endpoint/model/stream/status_code/session_key/message_count/response_chars/truncated/created_at`；`include_content=true` 时额外返回 `request_messages` 与 `response_text`。
+
+`username`/`email` 来自查询时关联的 `users` 表：用户改名后按姓名查询与返回值都反映当前名称；用户已删除时这两个字段为空，但按 `user_id` 仍可查到历史存档。
 
 ### 详情
 

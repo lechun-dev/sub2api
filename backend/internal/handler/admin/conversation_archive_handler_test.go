@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -63,6 +64,8 @@ func TestConversationArchiveHandlerListParsesFilters(t *testing.T) {
 			ID:            1,
 			RequestID:     "req-1",
 			UserID:        7,
+			Username:      "张三",
+			Email:         "zhang@example.com",
 			APIKeyID:      9,
 			Protocol:      service.ConversationArchiveProtocolAnthropicMessages,
 			Endpoint:      "/v1/messages",
@@ -80,7 +83,7 @@ func TestConversationArchiveHandlerListParsesFilters(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodGet,
-		"/api/v1/admin/conversation-archives?user_id=7&api_key_id=9&protocol=anthropic_messages&model=claude&keyword=hi&include_content=true&page=2&page_size=10&order=asc", nil)
+		"/api/v1/admin/conversation-archives?user_id=7&username=张三&api_key_id=9&protocol=anthropic_messages&model=claude&keyword=hi&include_content=true&page=2&page_size=10&order=asc", nil)
 	handler.List(c)
 
 	require.Equal(t, http.StatusOK, recorder.Code)
@@ -92,11 +95,14 @@ func TestConversationArchiveHandlerListParsesFilters(t *testing.T) {
 	require.True(t, ok)
 	require.Len(t, items, 1)
 	item := items[0].(map[string]any)
+	require.Equal(t, "张三", item["username"])
+	require.Equal(t, "zhang@example.com", item["email"])
 	require.Equal(t, "hello", item["response_text"])
 	require.Len(t, item["request_messages"], 1)
 
 	require.Equal(t, 1, repo.listCalls)
 	require.Equal(t, int64(7), *repo.lastFilter.UserID)
+	require.Equal(t, "张三", repo.lastFilter.UserName)
 	require.Equal(t, int64(9), *repo.lastFilter.APIKeyID)
 	require.Equal(t, "anthropic_messages", repo.lastFilter.Protocol)
 	require.Equal(t, "claude", repo.lastFilter.Model)
@@ -147,6 +153,7 @@ func TestConversationArchiveHandlerListRejectsInvalidFilters(t *testing.T) {
 		"/api/v1/admin/conversation-archives?stream=maybe",
 		"/api/v1/admin/conversation-archives?order=random",
 		"/api/v1/admin/conversation-archives?start_time=2026-10-21&end_time=2026-10-20",
+		"/api/v1/admin/conversation-archives?username=" + strings.Repeat("张", 101),
 	} {
 		recorder := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(recorder)

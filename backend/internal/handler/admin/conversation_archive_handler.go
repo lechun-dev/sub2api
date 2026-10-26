@@ -28,6 +28,8 @@ type conversationArchiveItem struct {
 	ID              int64                                `json:"id"`
 	RequestID       string                               `json:"request_id"`
 	UserID          int64                                `json:"user_id"`
+	Username        string                               `json:"username,omitempty"`
+	Email           string                               `json:"email,omitempty"`
 	APIKeyID        int64                                `json:"api_key_id"`
 	GroupID         *int64                               `json:"group_id,omitempty"`
 	Protocol        string                               `json:"protocol"`
@@ -92,6 +94,8 @@ func mapConversationArchiveItem(record *service.ConversationArchive, includeCont
 		ID:            record.ID,
 		RequestID:     record.RequestID,
 		UserID:        record.UserID,
+		Username:      record.Username,
+		Email:         record.Email,
 		APIKeyID:      record.APIKeyID,
 		GroupID:       record.GroupID,
 		Protocol:      record.Protocol,
@@ -125,6 +129,13 @@ func parseConversationArchiveFilter(c *gin.Context) (service.ConversationArchive
 	}
 	if filter.GroupID, err = parseConversationArchiveOptionalID(c, "group_id"); err != nil {
 		return filter, err
+	}
+	filter.UserName = strings.TrimSpace(c.Query("username"))
+	if filter.UserName == "" {
+		filter.UserName = strings.TrimSpace(c.Query("name"))
+	}
+	if len([]rune(filter.UserName)) > 100 {
+		return filter, errors.New("username is too long")
 	}
 	filter.RequestID = strings.TrimSpace(c.Query("request_id"))
 	filter.SessionKey = strings.TrimSpace(c.Query("session_key"))
