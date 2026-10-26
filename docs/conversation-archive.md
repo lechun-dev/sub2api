@@ -39,6 +39,7 @@
 | `session_key` | 优先取 `session_id` / `x-session-id` / `conversation_id` 请求头，其次 Responses 的 `previous_response_id` / `conversation` |
 | `request_messages` | `[{role, content}]` JSONB，仅文本 |
 | `response_text` | 助手文本（SSE 已拼接） |
+| `input_tokens` / `output_tokens` / `cached_input_tokens` | 从本次响应解析的 token 用量；上游未返回时为 NULL（未知，不是 0） |
 | `request_bytes` / `response_bytes` | 实际捕获字节数，用于发现异常大请求 |
 | `truncated` | 内容被截断或响应超过捕获上限 |
 | `created_at` | 归档时间（UTC） |
@@ -122,7 +123,7 @@ GET /api/v1/admin/conversation-archives
 | `include_content` | bool | 默认 `false`，只返回元数据与长度；`true` 时带 `request_messages` / `response_text` |
 | `order` | `asc`/`desc` | 按 `created_at`，默认 `desc` |
 
-返回：`code=0`，`data.items[]` 含 `id/request_id/user_id/username/email/api_key_id/group_id/group_name/group_platform/protocol/endpoint/model/stream/status_code/session_key/message_count/response_chars/truncated/created_at`；`include_content=true` 时额外返回 `request_messages` 与 `response_text`。
+返回：`code=0`，`data.items[]` 含 `id/request_id/user_id/username/email/api_key_id/group_id/group_name/group_platform/protocol/endpoint/model/stream/status_code/session_key/message_count/response_chars/input_tokens/output_tokens/cached_input_tokens/truncated/created_at`；`include_content=true` 时额外返回 `request_messages` 与 `response_text`。
 
 `group_name` / `group_platform` 来自查询时关联的 `groups` 表：分组改名后返回当前名称；分组已删除时两者为空，但 `group_id` 仍保留。
 
@@ -168,3 +169,4 @@ curl -sG https://your-host/api/v1/admin/conversation-archives \
 2. 对候选记录用详情接口（或小页 `include_content=true`）取原文。
 3. `keyword` 是 `ILIKE '%...%'`，大表上请始终带 `start_time`/`end_time` 或用户维度，避免全表扫描。
 4. `truncated=true` 表示内容被截断（请求超 1 MiB 会整条放弃，不会出现半条对话）。
+5. token 用量来自客户端收到的响应（Anthropic / OpenAI / Gemini 的 usage 字段）；上游流式不返回 usage 时为空，不要当作 0 参与均值计算，口径以 `usage_logs` 为准。

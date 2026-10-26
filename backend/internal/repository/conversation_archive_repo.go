@@ -28,13 +28,14 @@ func NewConversationArchiveRepository(db *sql.DB) service.ConversationArchiveRep
 }
 
 const conversationArchiveColumns = `request_id, user_id, api_key_id, group_id, protocol, endpoint, model,
- stream, status_code, session_key, request_messages, response_text, request_bytes, response_bytes, truncated, created_at`
+ stream, status_code, session_key, request_messages, response_text, input_tokens, output_tokens,
+ cached_input_tokens, request_bytes, response_bytes, truncated, created_at`
 
 func (r *conversationArchiveRepository) CreateBatch(ctx context.Context, records []*service.ConversationArchive) error {
 	if len(records) == 0 {
 		return nil
 	}
-	const columnsPerRow = 16
+	const columnsPerRow = 19
 	placeholders := make([]string, 0, len(records))
 	args := make([]any, 0, len(records)*columnsPerRow)
 	rowIndex := 0
@@ -61,6 +62,9 @@ func (r *conversationArchiveRepository) CreateBatch(ctx context.Context, records
 			conversationArchiveNullableID(record.APIKeyID), conversationArchiveNullableInt64Ptr(record.GroupID),
 			record.Protocol, record.Endpoint, record.Model, record.Stream, record.StatusCode,
 			conversationArchiveNullableString(record.SessionKey), messages, record.ResponseText,
+			conversationArchiveNullableInt64Ptr(record.InputTokens),
+			conversationArchiveNullableInt64Ptr(record.OutputTokens),
+			conversationArchiveNullableInt64Ptr(record.CachedInputTokens),
 			record.RequestBytes, record.ResponseBytes, record.Truncated, createdAt)
 	}
 	if len(placeholders) == 0 {
@@ -123,7 +127,8 @@ const conversationArchiveMetadataColumns = `ca.id, ca.request_id, ca.user_id, CO
  COALESCE(u.email, '') AS email, ca.api_key_id, ca.group_id, COALESCE(g.name, '') AS group_name,
  COALESCE(g.platform, '') AS group_platform, ca.protocol, ca.endpoint, ca.model, ca.stream,
  ca.status_code, ca.session_key, jsonb_array_length(ca.request_messages) AS message_count,
- length(ca.response_text) AS response_chars, ca.truncated, ca.created_at`
+ length(ca.response_text) AS response_chars, ca.input_tokens, ca.output_tokens, ca.cached_input_tokens,
+ ca.truncated, ca.created_at`
 
 // List 按筛选条件分页返回存档；IncludeContent 为 false 时只返回元数据与长度。
 func (r *conversationArchiveRepository) List(ctx context.Context, filter service.ConversationArchiveFilter) ([]*service.ConversationArchive, int64, error) {
@@ -259,10 +264,13 @@ func escapeConversationArchiveLike(value string) string {
 }
 
 type conversationArchiveNullables struct {
-	userID     sql.NullInt64
-	apiKeyID   sql.NullInt64
-	groupID    sql.NullInt64
-	sessionKey sql.NullString
+	userID            sql.NullInt64
+	apiKeyID          sql.NullInt64
+	groupID           sql.NullInt64
+	sessionKey        sql.NullString
+	inputTokens       sql.NullInt64
+	outputTokens      sql.NullInt64
+	cachedInputTokens sql.NullInt64
 }
 
 func (n *conversationArchiveNullables) destinations(record *service.ConversationArchive) []any {
@@ -270,7 +278,8 @@ func (n *conversationArchiveNullables) destinations(record *service.Conversation
 		&record.ID, &record.RequestID, &n.userID, &record.Username, &record.Email, &n.apiKeyID,
 		&n.groupID, &record.GroupName, &record.GroupPlatform, &record.Protocol, &record.Endpoint,
 		&record.Model, &record.Stream, &record.StatusCode,
-		&n.sessionKey, &record.MessageCount, &record.ResponseChars, &record.Truncated, &record.CreatedAt,
+		&n.sessionKey, &record.MessageCount, &record.ResponseChars,
+		&n.inputTokens, &n.outputTokens, &n.cachedInputTokens, &record.Truncated, &record.CreatedAt,
 	}
 }
 
@@ -287,6 +296,18 @@ func (n *conversationArchiveNullables) apply(record *service.ConversationArchive
 	}
 	if n.sessionKey.Valid {
 		record.SessionKey = n.sessionKey.String
+	}
+	if n.inputTokens.Valid {
+		value := n.inputTokens.Int64
+		record.InputTokens = &value
+	}
+	if n.outputTokens.Valid {
+		value := n.outputTokens.Int64
+		record.OutputTokens = &value
+	}
+	if n.cachedInputTokens.Valid {
+		value := n.cachedInputTokens.Int64
+		record.CachedInputTokens = &value
 	}
 }
 

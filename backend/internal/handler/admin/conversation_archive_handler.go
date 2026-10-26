@@ -25,27 +25,30 @@ func NewConversationArchiveHandler(archive *service.ConversationArchiveService) 
 }
 
 type conversationArchiveItem struct {
-	ID              int64                                `json:"id"`
-	RequestID       string                               `json:"request_id"`
-	UserID          int64                                `json:"user_id"`
-	Username        string                               `json:"username,omitempty"`
-	Email           string                               `json:"email,omitempty"`
-	APIKeyID        int64                                `json:"api_key_id"`
-	GroupID         *int64                               `json:"group_id,omitempty"`
-	GroupName       string                               `json:"group_name,omitempty"`
-	GroupPlatform   string                               `json:"group_platform,omitempty"`
-	Protocol        string                               `json:"protocol"`
-	Endpoint        string                               `json:"endpoint"`
-	Model           string                               `json:"model"`
-	Stream          bool                                 `json:"stream"`
-	StatusCode      int                                  `json:"status_code"`
-	SessionKey      string                               `json:"session_key,omitempty"`
-	MessageCount    int                                  `json:"message_count"`
-	ResponseChars   int                                  `json:"response_chars"`
-	Truncated       bool                                 `json:"truncated"`
-	CreatedAt       time.Time                            `json:"created_at"`
-	RequestMessages []service.ConversationArchiveMessage `json:"request_messages,omitempty"`
-	ResponseText    *string                              `json:"response_text,omitempty"`
+	ID                int64                                `json:"id"`
+	RequestID         string                               `json:"request_id"`
+	UserID            int64                                `json:"user_id"`
+	Username          string                               `json:"username,omitempty"`
+	Email             string                               `json:"email,omitempty"`
+	APIKeyID          int64                                `json:"api_key_id"`
+	GroupID           *int64                               `json:"group_id,omitempty"`
+	GroupName         string                               `json:"group_name,omitempty"`
+	GroupPlatform     string                               `json:"group_platform,omitempty"`
+	Protocol          string                               `json:"protocol"`
+	Endpoint          string                               `json:"endpoint"`
+	Model             string                               `json:"model"`
+	Stream            bool                                 `json:"stream"`
+	StatusCode        int                                  `json:"status_code"`
+	SessionKey        string                               `json:"session_key,omitempty"`
+	MessageCount      int                                  `json:"message_count"`
+	ResponseChars     int                                  `json:"response_chars"`
+	InputTokens       *int64                               `json:"input_tokens,omitempty"`
+	OutputTokens      *int64                               `json:"output_tokens,omitempty"`
+	CachedInputTokens *int64                               `json:"cached_input_tokens,omitempty"`
+	Truncated         bool                                 `json:"truncated"`
+	CreatedAt         time.Time                            `json:"created_at"`
+	RequestMessages   []service.ConversationArchiveMessage `json:"request_messages,omitempty"`
+	ResponseText      *string                              `json:"response_text,omitempty"`
 }
 
 // List 分页查询会话存档。
@@ -93,25 +96,28 @@ func (h *ConversationArchiveHandler) Get(c *gin.Context) {
 
 func mapConversationArchiveItem(record *service.ConversationArchive, includeContent bool) conversationArchiveItem {
 	item := conversationArchiveItem{
-		ID:            record.ID,
-		RequestID:     record.RequestID,
-		UserID:        record.UserID,
-		Username:      record.Username,
-		Email:         record.Email,
-		APIKeyID:      record.APIKeyID,
-		GroupID:       record.GroupID,
-		GroupName:     record.GroupName,
-		GroupPlatform: record.GroupPlatform,
-		Protocol:      record.Protocol,
-		Endpoint:      record.Endpoint,
-		Model:         record.Model,
-		Stream:        record.Stream,
-		StatusCode:    record.StatusCode,
-		SessionKey:    record.SessionKey,
-		MessageCount:  record.MessageCount,
-		ResponseChars: record.ResponseChars,
-		Truncated:     record.Truncated,
-		CreatedAt:     record.CreatedAt,
+		ID:                record.ID,
+		RequestID:         record.RequestID,
+		UserID:            record.UserID,
+		Username:          record.Username,
+		Email:             record.Email,
+		APIKeyID:          record.APIKeyID,
+		GroupID:           record.GroupID,
+		GroupName:         record.GroupName,
+		GroupPlatform:     record.GroupPlatform,
+		Protocol:          record.Protocol,
+		Endpoint:          record.Endpoint,
+		Model:             record.Model,
+		Stream:            record.Stream,
+		StatusCode:        record.StatusCode,
+		SessionKey:        record.SessionKey,
+		MessageCount:      record.MessageCount,
+		ResponseChars:     record.ResponseChars,
+		InputTokens:       record.InputTokens,
+		OutputTokens:      record.OutputTokens,
+		CachedInputTokens: record.CachedInputTokens,
+		Truncated:         record.Truncated,
+		CreatedAt:         record.CreatedAt,
 	}
 	if includeContent {
 		item.RequestMessages = record.Messages

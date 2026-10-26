@@ -53,29 +53,32 @@ type ConversationArchiveMessage struct {
 
 // ConversationArchive 是一轮用户与 AI 对话的归档记录。
 type ConversationArchive struct {
-	ID            int64                        `json:"id"`
-	RequestID     string                       `json:"request_id"`
-	UserID        int64                        `json:"user_id"`
-	Username      string                       `json:"username,omitempty"`
-	Email         string                       `json:"email,omitempty"`
-	APIKeyID      int64                        `json:"api_key_id"`
-	GroupID       *int64                       `json:"group_id,omitempty"`
-	GroupName     string                       `json:"group_name,omitempty"`
-	GroupPlatform string                       `json:"group_platform,omitempty"`
-	Protocol      string                       `json:"protocol"`
-	Endpoint      string                       `json:"endpoint"`
-	Model         string                       `json:"model"`
-	Stream        bool                         `json:"stream"`
-	StatusCode    int                          `json:"status_code"`
-	SessionKey    string                       `json:"session_key,omitempty"`
-	Messages      []ConversationArchiveMessage `json:"request_messages"`
-	ResponseText  string                       `json:"response_text"`
-	RequestBytes  int                          `json:"request_bytes"`
-	ResponseBytes int                          `json:"response_bytes"`
-	Truncated     bool                         `json:"truncated"`
-	MessageCount  int                          `json:"message_count"`
-	ResponseChars int                          `json:"response_chars"`
-	CreatedAt     time.Time                    `json:"created_at"`
+	ID                int64                        `json:"id"`
+	RequestID         string                       `json:"request_id"`
+	UserID            int64                        `json:"user_id"`
+	Username          string                       `json:"username,omitempty"`
+	Email             string                       `json:"email,omitempty"`
+	APIKeyID          int64                        `json:"api_key_id"`
+	GroupID           *int64                       `json:"group_id,omitempty"`
+	GroupName         string                       `json:"group_name,omitempty"`
+	GroupPlatform     string                       `json:"group_platform,omitempty"`
+	Protocol          string                       `json:"protocol"`
+	Endpoint          string                       `json:"endpoint"`
+	Model             string                       `json:"model"`
+	Stream            bool                         `json:"stream"`
+	StatusCode        int                          `json:"status_code"`
+	SessionKey        string                       `json:"session_key,omitempty"`
+	Messages          []ConversationArchiveMessage `json:"request_messages"`
+	ResponseText      string                       `json:"response_text"`
+	RequestBytes      int                          `json:"request_bytes"`
+	ResponseBytes     int                          `json:"response_bytes"`
+	InputTokens       *int64                       `json:"input_tokens,omitempty"`
+	OutputTokens      *int64                       `json:"output_tokens,omitempty"`
+	CachedInputTokens *int64                       `json:"cached_input_tokens,omitempty"`
+	Truncated         bool                         `json:"truncated"`
+	MessageCount      int                          `json:"message_count"`
+	ResponseChars     int                          `json:"response_chars"`
+	CreatedAt         time.Time                    `json:"created_at"`
 }
 
 // ConversationArchiveFilter 是管理端查询存档的过筛条件。
@@ -528,25 +531,29 @@ func BuildConversationArchive(input ConversationArchiveCaptureInput) *Conversati
 	sessionKey := conversationArchiveSessionKey(input.Headers, protocol, input.RequestBytes)
 	messages, messagesTruncated := limitConversationArchiveMessages(messages)
 	responseText, responseTruncated := truncateRunes(responseText, conversationArchiveMaxResponseRunes)
+	tokenUsage := ExtractConversationUsage(protocol, stream, input.ResponseBytes)
 
 	createdAt := time.Now().UTC()
 	return &ConversationArchive{
-		RequestID:     truncateRunesPlain(input.RequestID, 128),
-		UserID:        input.UserID,
-		APIKeyID:      input.APIKeyID,
-		GroupID:       input.GroupID,
-		Protocol:      protocol,
-		Endpoint:      truncateRunesPlain(input.Endpoint, 255),
-		Model:         truncateRunesPlain(model, 128),
-		Stream:        stream,
-		StatusCode:    input.StatusCode,
-		SessionKey:    sessionKey,
-		Messages:      messages,
-		ResponseText:  responseText,
-		RequestBytes:  len(input.RequestBytes),
-		ResponseBytes: len(input.ResponseBytes),
-		Truncated:     messagesTruncated || responseTruncated || (input.ResponseLimit > 0 && len(input.ResponseBytes) >= input.ResponseLimit),
-		CreatedAt:     createdAt,
+		RequestID:         truncateRunesPlain(input.RequestID, 128),
+		UserID:            input.UserID,
+		APIKeyID:          input.APIKeyID,
+		GroupID:           input.GroupID,
+		Protocol:          protocol,
+		Endpoint:          truncateRunesPlain(input.Endpoint, 255),
+		Model:             truncateRunesPlain(model, 128),
+		Stream:            stream,
+		StatusCode:        input.StatusCode,
+		SessionKey:        sessionKey,
+		Messages:          messages,
+		ResponseText:      responseText,
+		InputTokens:       tokenUsage.InputTokens,
+		OutputTokens:      tokenUsage.OutputTokens,
+		CachedInputTokens: tokenUsage.CachedInputTokens,
+		RequestBytes:      len(input.RequestBytes),
+		ResponseBytes:     len(input.ResponseBytes),
+		Truncated:         messagesTruncated || responseTruncated || (input.ResponseLimit > 0 && len(input.ResponseBytes) >= input.ResponseLimit),
+		CreatedAt:         createdAt,
 	}
 }
 
