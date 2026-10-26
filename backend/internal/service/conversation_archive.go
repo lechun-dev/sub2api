@@ -81,6 +81,41 @@ type ConversationArchive struct {
 	CreatedAt         time.Time                    `json:"created_at"`
 }
 
+// 会话存档统计的分组维度。
+const (
+	ConversationArchiveGroupNone     = "none"
+	ConversationArchiveGroupUser     = "user"
+	ConversationArchiveGroupDate     = "date"
+	ConversationArchiveGroupModel    = "model"
+	ConversationArchiveGroupProtocol = "protocol"
+	ConversationArchiveGroupGroup    = "group"
+	ConversationArchiveGroupAPIKey   = "api_key"
+)
+
+// ConversationArchiveTotals 是一组存档的 token 汇总；样本数用于区分「无数据」与「上游未返回」。
+type ConversationArchiveTotals struct {
+	Records           int64 `json:"records"`
+	RecordsWithUsage  int64 `json:"records_with_usage"`
+	InputTokens       int64 `json:"input_tokens"`
+	OutputTokens      int64 `json:"output_tokens"`
+	CachedInputTokens int64 `json:"cached_input_tokens"`
+}
+
+// ConversationArchiveAggregate 是按维度聚合后的一行；具体分组字段由 GroupBy 决定。
+type ConversationArchiveAggregate struct {
+	Key       string `json:"key"`
+	UserID    *int64 `json:"user_id,omitempty"`
+	Username  string `json:"username,omitempty"`
+	Email     string `json:"email,omitempty"`
+	GroupID   *int64 `json:"group_id,omitempty"`
+	GroupName string `json:"group_name,omitempty"`
+	APIKeyID  *int64 `json:"api_key_id,omitempty"`
+	Model     string `json:"model,omitempty"`
+	Protocol  string `json:"protocol,omitempty"`
+	Date      string `json:"date,omitempty"`
+	ConversationArchiveTotals
+}
+
 // ConversationArchiveFilter 是管理端查询存档的过筛条件。
 type ConversationArchiveFilter struct {
 	Page     int
@@ -113,6 +148,7 @@ type ConversationArchiveRepository interface {
 	DeleteBefore(ctx context.Context, cutoff time.Time, limit int) (int64, error)
 	List(ctx context.Context, filter ConversationArchiveFilter) ([]*ConversationArchive, int64, error)
 	GetByID(ctx context.Context, id int64) (*ConversationArchive, error)
+	Stats(ctx context.Context, filter ConversationArchiveFilter, groupBy string, limit int, descending bool) ([]*ConversationArchiveAggregate, *ConversationArchiveTotals, error)
 }
 
 // ErrConversationArchiveNotFound 表示查询的存档不存在。
@@ -143,6 +179,35 @@ func (s *ConversationArchiveService) List(ctx context.Context, filter Conversati
 		filter.Keyword = string([]rune(filter.Keyword)[:conversationArchiveKeywordMaxRunes])
 	}
 	return s.repo.List(ctx, filter)
+}
+
+const (
+	conversationArchiveStatsDefaultLimit = 50
+	conversationArchiveStatsMaxLimit     = 200
+)
+
+// UsageStats 按用户/日期/模型等维度汇总 token 用量；filter 复用列表接口的筛选条件。
+func (s *ConversationArchiveService) UsageStats(ctx context.Context, filter ConversationArchiveFilter, groupBy string, limit int, descending bool) ([]*ConversationArchiveAggregate, *ConversationArchiveTotals, error) {
+	if s == nil || s.repo == nil {
+		return nil, nil, errors.New("会话存档服务不可用")
+	}
+	groupBy = strings.ToLower(strings.TrimSpace(groupBy))
+	switch groupBy {
+	case "", ConversationArchiveGroupNone:
+		groupBy = ConversationArchiveGroupNone
+	case ConversationArchiveGroupUser, ConversationArchiveGroupDate, ConversationArchiveGroupModel,
+		ConversationArchiveGroupProtocol, ConversationArchiveGroupGroup, ConversationArchiveGroupAPIKey:
+	default:
+		return nil, nil, infraerrors.BadRequest("INVALID_GROUP_BY", "不支持的分组维度")
+	}
+	if limit <= 0 {
+		limit = conversationArchiveStatsDefaultLimit
+	}
+	if limit > conversationArchiveStatsMaxLimit {
+		limit = conversationArchiveStatsMaxLimit
+	}
+	filter.Keyword = strings.TrimSpace(filter.Keyword)
+	return s.repo.Stats(ctx, filter, groupBy, limit, descending)
 }
 
 // GetByID 读取单条存档（含完整文本内容）。

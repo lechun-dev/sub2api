@@ -370,3 +370,148 @@ func decodeConversationArchiveContent(record *service.ConversationArchive, messa
 	record.Messages = messages
 	return nil
 }
+
+// Stats 按维度汇总 token 用量，并返回筛选条件下的总计。
+func (r *conversationArchiveRepository) Stats(ctx context.Context, filter service.ConversationArchiveFilter, groupBy string, limit int, descending bool) ([]*service.ConversationArchiveAggregate, *service.ConversationArchiveTotals, error) {
+	where, args := conversationArchiveWhere(filter)
+
+	totals := &service.ConversationArchiveTotals{}
+	if err := r.sql.QueryRowContext(ctx, `SELECT COUNT(*), COUNT(ca.input_tokens),
+ COALESCE(SUM(ca.input_tokens), 0)::bigint, COALESCE(SUM(ca.output_tokens), 0)::bigint,
+ COALESCE(SUM(ca.cached_input_tokens), 0)::bigint
+ FROM `+conversationArchiveFrom+where, args...).Scan(
+		&totals.Records, &totals.RecordsWithUsage, &totals.InputTokens, &totals.OutputTokens, &totals.CachedInputTokens,
+	); err != nil {
+		return nil, nil, err
+	}
+
+	if groupBy == service.ConversationArchiveGroupNone {
+		return []*service.ConversationArchiveAggregate{}, totals, nil
+	}
+
+	selectExpr, groupExpr, ok := conversationArchiveGroupExpressions(groupBy)
+	if !ok {
+		return nil, nil, fmt.Errorf("unsupported conversation archive group by %q", groupBy)
+	}
+	direction := "DESC"
+	if !descending {
+		direction = "ASC"
+	}
+	queryArgs := append(append([]any(nil), args...), limit)
+	query := `SELECT ` + selectExpr + `,
+ COUNT(*) AS records,
+ COUNT(ca.input_tokens) AS records_with_usage,
+ COALESCE(SUM(ca.input_tokens), 0)::bigint AS input_tokens,
+ COALESCE(SUM(ca.output_tokens), 0)::bigint AS output_tokens,
+ COALESCE(SUM(ca.cached_input_tokens), 0)::bigint AS cached_input_tokens
+ FROM ` + conversationArchiveFrom + where + `
+ GROUP BY ` + groupExpr + `
+ ORDER BY (COALESCE(SUM(ca.input_tokens), 0) + COALESCE(SUM(ca.output_tokens), 0)) ` + direction +
+		fmt.Sprintf(" LIMIT $%d", len(args)+1)
+
+	rows, err := r.sql.QueryContext(ctx, query, queryArgs...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	items := make([]*service.ConversationArchiveAggregate, 0, limit)
+	for rows.Next() {
+		item, err := scanConversationArchiveAggregate(rows, groupBy)
+		if err != nil {
+			return nil, nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	return items, totals, nil
+}
+
+func conversationArchiveGroupExpressions(groupBy string) (string, string, bool) {
+	switch groupBy {
+	case service.ConversationArchiveGroupUser:
+		return `ca.user_id AS group_user_id, COALESCE(u.username, '') AS group_username, COALESCE(u.email, '') AS group_email`,
+			`ca.user_id, u.username, u.email`, true
+	case service.ConversationArchiveGroupDate:
+		return `to_char(ca.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS group_date`, `1`, true
+	case service.ConversationArchiveGroupModel:
+		return `ca.model AS group_model`, `ca.model`, true
+	case service.ConversationArchiveGroupProtocol:
+		return `ca.protocol AS group_protocol`, `ca.protocol`, true
+	case service.ConversationArchiveGroupGroup:
+		return `ca.group_id AS group_group_id, COALESCE(g.name, '') AS group_group_name`, `ca.group_id, g.name`, true
+	case service.ConversationArchiveGroupAPIKey:
+		return `ca.api_key_id AS group_api_key_id`, `ca.api_key_id`, true
+	default:
+		return "", "", false
+	}
+}
+
+func scanConversationArchiveAggregate(rows *sql.Rows, groupBy string) (*service.ConversationArchiveAggregate, error) {
+	item := &service.ConversationArchiveAggregate{}
+	var (
+		userID    sql.NullInt64
+		groupID   sql.NullInt64
+		apiKeyID  sql.NullInt64
+		username  string
+		email     string
+		date      string
+		model     string
+		protocol  string
+		groupName string
+	)
+	dest := make([]any, 0, 8)
+	switch groupBy {
+	case service.ConversationArchiveGroupUser:
+		dest = append(dest, &userID, &username, &email)
+	case service.ConversationArchiveGroupDate:
+		dest = append(dest, &date)
+	case service.ConversationArchiveGroupModel:
+		dest = append(dest, &model)
+	case service.ConversationArchiveGroupProtocol:
+		dest = append(dest, &protocol)
+	case service.ConversationArchiveGroupGroup:
+		dest = append(dest, &groupID, &groupName)
+	case service.ConversationArchiveGroupAPIKey:
+		dest = append(dest, &apiKeyID)
+	}
+	dest = append(dest, &item.Records, &item.RecordsWithUsage, &item.InputTokens, &item.OutputTokens, &item.CachedInputTokens)
+	if err := rows.Scan(dest...); err != nil {
+		return nil, err
+	}
+	switch groupBy {
+	case service.ConversationArchiveGroupUser:
+		if userID.Valid {
+			value := userID.Int64
+			item.UserID = &value
+			item.Key = fmt.Sprintf("%d", value)
+		}
+		item.Username = username
+		item.Email = email
+	case service.ConversationArchiveGroupDate:
+		item.Date = date
+		item.Key = date
+	case service.ConversationArchiveGroupModel:
+		item.Model = model
+		item.Key = model
+	case service.ConversationArchiveGroupProtocol:
+		item.Protocol = protocol
+		item.Key = protocol
+	case service.ConversationArchiveGroupGroup:
+		if groupID.Valid {
+			value := groupID.Int64
+			item.GroupID = &value
+			item.Key = fmt.Sprintf("%d", value)
+		}
+		item.GroupName = groupName
+	case service.ConversationArchiveGroupAPIKey:
+		if apiKeyID.Valid {
+			value := apiKeyID.Int64
+			item.APIKeyID = &value
+			item.Key = fmt.Sprintf("%d", value)
+		}
+	}
+	return item, nil
+}

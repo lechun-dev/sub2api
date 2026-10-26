@@ -15,11 +15,16 @@ import (
 )
 
 type conversationArchiveHandlerRepo struct {
-	records    []*service.ConversationArchive
-	total      int64
-	lastFilter service.ConversationArchiveFilter
-	listCalls  int
-	record     *service.ConversationArchive
+	records         []*service.ConversationArchive
+	total           int64
+	lastFilter      service.ConversationArchiveFilter
+	listCalls       int
+	record          *service.ConversationArchive
+	statsItems      []*service.ConversationArchiveAggregate
+	statsTotals     *service.ConversationArchiveTotals
+	statsGroupBy    string
+	statsLimit      int
+	statsDescending bool
 }
 
 func (r *conversationArchiveHandlerRepo) CreateBatch(context.Context, []*service.ConversationArchive) error {
@@ -38,6 +43,14 @@ func (r *conversationArchiveHandlerRepo) List(_ context.Context, filter service.
 
 func (r *conversationArchiveHandlerRepo) GetByID(context.Context, int64) (*service.ConversationArchive, error) {
 	return r.record, nil
+}
+
+func (r *conversationArchiveHandlerRepo) Stats(_ context.Context, filter service.ConversationArchiveFilter, groupBy string, limit int, descending bool) ([]*service.ConversationArchiveAggregate, *service.ConversationArchiveTotals, error) {
+	r.lastFilter = filter
+	r.statsGroupBy = groupBy
+	r.statsLimit = limit
+	r.statsDescending = descending
+	return r.statsItems, r.statsTotals, nil
 }
 
 func newConversationArchiveHandler(repo *conversationArchiveHandlerRepo) *ConversationArchiveHandler {
@@ -217,4 +230,57 @@ func TestConversationArchiveHandlerGetRejectsInvalidID(t *testing.T) {
 	handler.Get(c)
 
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
+}
+
+func TestConversationArchiveHandlerStats(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := &conversationArchiveHandlerRepo{
+		statsItems: []*service.ConversationArchiveAggregate{{
+			Key: "7", Records: 3, RecordsWithUsage: 2, InputTokens: 10, OutputTokens: 20, CachedInputTokens: 5,
+		}},
+		statsTotals: &service.ConversationArchiveTotals{Records: 3, RecordsWithUsage: 2, InputTokens: 10, OutputTokens: 20, CachedInputTokens: 5},
+	}
+	handler := newConversationArchiveHandler(repo)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet,
+		"/api/v1/internal/conversation-archives/stats?user_id=7&group_by=user&limit=10&order=asc", nil)
+	handler.Stats(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	data := decodeResponseData(t, recorder)
+	require.Equal(t, "user", data["group_by"])
+	require.Equal(t, "asc", data["order"])
+	items, ok := data["items"].([]any)
+	require.True(t, ok)
+	require.Len(t, items, 1)
+	item := items[0].(map[string]any)
+	require.Equal(t, "7", item["key"])
+	require.Equal(t, float64(3), item["records"])
+	require.Equal(t, float64(10), item["input_tokens"])
+	totals := data["totals"].(map[string]any)
+	require.Equal(t, float64(20), totals["output_tokens"])
+	require.Equal(t, "user", repo.statsGroupBy)
+	require.Equal(t, 10, repo.statsLimit)
+	require.False(t, repo.statsDescending)
+	require.NotNil(t, repo.lastFilter.UserID)
+	require.Equal(t, int64(7), *repo.lastFilter.UserID)
+}
+
+func TestConversationArchiveHandlerStatsRejectsInvalidParams(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler := newConversationArchiveHandler(&conversationArchiveHandlerRepo{})
+
+	for _, target := range []string{
+		"/api/v1/internal/conversation-archives/stats?group_by=unknown",
+		"/api/v1/internal/conversation-archives/stats?limit=0",
+		"/api/v1/internal/conversation-archives/stats?order=random",
+	} {
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest(http.MethodGet, target, nil)
+		handler.Stats(c)
+		require.Equal(t, http.StatusBadRequest, recorder.Code, target)
+	}
 }

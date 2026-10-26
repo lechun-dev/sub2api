@@ -15,6 +15,7 @@ func RegisterInternalRoutes(v1 *gin.RouterGroup, h *handler.Handlers, internalAu
 	internal.Use(gin.HandlerFunc(auditLog))
 	{
 		internal.GET("/conversation-archives", h.Admin.ConversationArchive.List)
+		internal.GET("/conversation-archives/stats", h.Admin.ConversationArchive.Stats)
 		internal.GET("/conversation-archives/:id", h.Admin.ConversationArchive.Get)
 	}
 }

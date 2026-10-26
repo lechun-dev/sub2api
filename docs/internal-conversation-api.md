@@ -51,6 +51,51 @@ GET /api/v1/internal/conversation-archives
 GET /api/v1/internal/conversation-archives/:id
 ```
 
+### 3.3 token 用量统计
+
+```
+GET /api/v1/internal/conversation-archives/stats
+```
+
+筛选参数与列表一致（`user_id`、`username`、`api_key_id`、`group_id`、`model`、`protocol`、`start_time`、`end_time`、`keyword` 等），额外支持：
+
+| 参数 | 说明 |
+|---|---|
+| `group_by` | `none`（只返回总计）/ `user` / `date`（UTC YYYY-MM-DD）/ `model` / `protocol` / `group` / `api_key` |
+| `limit` | 分组返回条数，默认 50，上限 200；按输入+输出 token 排序 |
+| `order` | `asc` / `desc`（默认 `desc`） |
+
+返回：
+
+```json
+{
+  "group_by": "user",
+  "order": "desc",
+  "items": [
+    {
+      "key": "7",
+      "user_id": 7,
+      "username": "张三",
+      "email": "zhang@example.com",
+      "records": 3,
+      "records_with_usage": 2,
+      "input_tokens": 100,
+      "output_tokens": 200,
+      "cached_input_tokens": 50
+    }
+  ],
+  "totals": {
+    "records": 3,
+    "records_with_usage": 2,
+    "input_tokens": 100,
+    "output_tokens": 200,
+    "cached_input_tokens": 50
+  }
+}
+```
+
+`records_with_usage` 表示有 usage 的记录数；token 字段只累计非 NULL 值，上游未返回时不会按 0 计入。
+
 ## 4. 配置
 
 ```yaml

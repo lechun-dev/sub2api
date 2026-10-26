@@ -277,8 +277,13 @@ func TestParseConversationArchiveRetentionDays(t *testing.T) {
 }
 
 type recordingConversationArchiveRepo struct {
-	mu      sync.Mutex
-	records []*ConversationArchive
+	mu              sync.Mutex
+	records         []*ConversationArchive
+	statsItems      []*ConversationArchiveAggregate
+	statsTotals     *ConversationArchiveTotals
+	statsGroupBy    string
+	statsLimit      int
+	statsDescending bool
 }
 
 func (r *recordingConversationArchiveRepo) CreateBatch(_ context.Context, records []*ConversationArchive) error {
@@ -300,6 +305,15 @@ func (r *recordingConversationArchiveRepo) List(context.Context, ConversationArc
 
 func (r *recordingConversationArchiveRepo) GetByID(context.Context, int64) (*ConversationArchive, error) {
 	return nil, nil
+}
+
+func (r *recordingConversationArchiveRepo) Stats(_ context.Context, _ ConversationArchiveFilter, groupBy string, limit int, descending bool) ([]*ConversationArchiveAggregate, *ConversationArchiveTotals, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.statsGroupBy = groupBy
+	r.statsLimit = limit
+	r.statsDescending = descending
+	return r.statsItems, r.statsTotals, nil
 }
 
 func (r *recordingConversationArchiveRepo) snapshot() []*ConversationArchive {
@@ -334,6 +348,35 @@ type conversationArchiveSettingRepo struct {
 
 func (r conversationArchiveSettingRepo) GetValue(context.Context, string) (string, error) {
 	return r.value, r.err
+}
+
+func TestConversationArchiveServiceUsageStats(t *testing.T) {
+	t.Parallel()
+
+	repo := &recordingConversationArchiveRepo{
+		statsItems:  []*ConversationArchiveAggregate{{Key: "7", Records: 2, InputTokens: 10}},
+		statsTotals: &ConversationArchiveTotals{Records: 2, InputTokens: 10},
+	}
+	svc := NewConversationArchiveService(repo, nil)
+
+	items, totals, err := svc.UsageStats(context.Background(), ConversationArchiveFilter{}, "user", 500, false)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.Equal(t, int64(10), totals.InputTokens)
+	require.Equal(t, "user", repo.statsGroupBy)
+	require.Equal(t, conversationArchiveStatsMaxLimit, repo.statsLimit)
+	require.False(t, repo.statsDescending)
+}
+
+func TestConversationArchiveServiceUsageStatsRejectsInvalidGroup(t *testing.T) {
+	t.Parallel()
+
+	repo := &recordingConversationArchiveRepo{}
+	svc := NewConversationArchiveService(repo, nil)
+
+	_, _, err := svc.UsageStats(context.Background(), ConversationArchiveFilter{}, "unknown", 0, true)
+	require.Error(t, err)
+	require.Empty(t, repo.statsGroupBy)
 }
 
 func TestConversationArchiveServiceEnabled(t *testing.T) {

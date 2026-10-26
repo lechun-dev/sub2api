@@ -48,6 +48,10 @@ func (r *conversationArchiveTestRepo) GetByID(context.Context, int64) (*service.
 	return nil, nil
 }
 
+func (r *conversationArchiveTestRepo) Stats(context.Context, service.ConversationArchiveFilter, string, int, bool) ([]*service.ConversationArchiveAggregate, *service.ConversationArchiveTotals, error) {
+	return nil, &service.ConversationArchiveTotals{}, nil
+}
+
 func (r *conversationArchiveTestRepo) snapshot() []*service.ConversationArchive {
 	r.mu.Lock()
 	defer r.mu.Unlock()

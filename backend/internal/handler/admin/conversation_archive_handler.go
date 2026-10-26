@@ -78,6 +78,87 @@ func (h *ConversationArchiveHandler) List(c *gin.Context) {
 	response.Paginated(c, items, total, page, pageSize)
 }
 
+type conversationArchiveStatsItem struct {
+	Key               string `json:"key"`
+	UserID            *int64 `json:"user_id,omitempty"`
+	Username          string `json:"username,omitempty"`
+	Email             string `json:"email,omitempty"`
+	GroupID           *int64 `json:"group_id,omitempty"`
+	GroupName         string `json:"group_name,omitempty"`
+	APIKeyID          *int64 `json:"api_key_id,omitempty"`
+	Model             string `json:"model,omitempty"`
+	Protocol          string `json:"protocol,omitempty"`
+	Date              string `json:"date,omitempty"`
+	Records           int64  `json:"records"`
+	RecordsWithUsage  int64  `json:"records_with_usage"`
+	InputTokens       int64  `json:"input_tokens"`
+	OutputTokens      int64  `json:"output_tokens"`
+	CachedInputTokens int64  `json:"cached_input_tokens"`
+}
+
+// Stats 按用户/日期/模型等维度汇总 token 用量。
+// GET /api/v1/internal/conversation-archives/stats
+func (h *ConversationArchiveHandler) Stats(c *gin.Context) {
+	filter, err := parseConversationArchiveFilter(c)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	groupBy := strings.ToLower(strings.TrimSpace(c.Query("group_by")))
+	if groupBy == "" {
+		groupBy = service.ConversationArchiveGroupNone
+	}
+	order := strings.ToLower(strings.TrimSpace(c.Query("order")))
+	if order == "" {
+		order = "desc"
+	}
+	if order != "asc" && order != "desc" {
+		response.BadRequest(c, "Invalid order, expect asc or desc")
+		return
+	}
+	limit := 0
+	if raw := strings.TrimSpace(c.Query("limit")); raw != "" {
+		parsed, parseErr := strconv.Atoi(raw)
+		if parseErr != nil || parsed <= 0 {
+			response.BadRequest(c, "Invalid limit")
+			return
+		}
+		limit = parsed
+	}
+
+	items, totals, err := h.archive.UsageStats(c.Request.Context(), filter, groupBy, limit, order != "asc")
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	out := make([]conversationArchiveStatsItem, 0, len(items))
+	for _, item := range items {
+		out = append(out, conversationArchiveStatsItem{
+			Key:               item.Key,
+			UserID:            item.UserID,
+			Username:          item.Username,
+			Email:             item.Email,
+			GroupID:           item.GroupID,
+			GroupName:         item.GroupName,
+			APIKeyID:          item.APIKeyID,
+			Model:             item.Model,
+			Protocol:          item.Protocol,
+			Date:              item.Date,
+			Records:           item.Records,
+			RecordsWithUsage:  item.RecordsWithUsage,
+			InputTokens:       item.InputTokens,
+			OutputTokens:      item.OutputTokens,
+			CachedInputTokens: item.CachedInputTokens,
+		})
+	}
+	response.Success(c, gin.H{
+		"group_by": groupBy,
+		"order":    order,
+		"items":    out,
+		"totals":   totals,
+	})
+}
+
 // Get 查询单条存档详情（始终包含完整文本）。
 // GET /api/v1/admin/conversation-archives/:id
 func (h *ConversationArchiveHandler) Get(c *gin.Context) {

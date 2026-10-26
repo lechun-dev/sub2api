@@ -242,3 +242,51 @@ func TestConversationArchiveRepositoryListByUsername(t *testing.T) {
 	require.Equal(t, "张三", records[0].Username)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestConversationArchiveRepositoryStatsByUser(t *testing.T) {
+	t.Parallel()
+
+	db, mock := newSQLMock(t)
+	repo := NewConversationArchiveRepository(db)
+	userID := int64(7)
+
+	mock.ExpectQuery(`SELECT COUNT\(\*\), COUNT\(ca.input_tokens\)`).
+		WithArgs(int64(7)).
+		WillReturnRows(sqlmock.NewRows([]string{"records", "records_with_usage", "input_tokens", "output_tokens", "cached_input_tokens"}).
+			AddRow(2, 2, 100, 200, 50))
+
+	mock.ExpectQuery(`SELECT ca.user_id AS group_user_id`).
+		WithArgs(int64(7), 50).
+		WillReturnRows(sqlmock.NewRows([]string{"group_user_id", "group_username", "group_email", "records", "records_with_usage", "input_tokens", "output_tokens", "cached_input_tokens"}).
+			AddRow(int64(7), "张三", "zhang@example.com", 2, 2, 100, 200, 50))
+
+	items, totals, err := repo.Stats(context.Background(), service.ConversationArchiveFilter{UserID: &userID},
+		service.ConversationArchiveGroupUser, 50, true)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), totals.Records)
+	require.Equal(t, int64(100), totals.InputTokens)
+	require.Len(t, items, 1)
+	require.Equal(t, "7", items[0].Key)
+	require.Equal(t, "张三", items[0].Username)
+	require.Equal(t, int64(200), items[0].OutputTokens)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestConversationArchiveRepositoryStatsTotalsOnly(t *testing.T) {
+	t.Parallel()
+
+	db, mock := newSQLMock(t)
+	repo := NewConversationArchiveRepository(db)
+
+	mock.ExpectQuery(`SELECT COUNT\(\*\), COUNT\(ca.input_tokens\)`).
+		WillReturnRows(sqlmock.NewRows([]string{"records", "records_with_usage", "input_tokens", "output_tokens", "cached_input_tokens"}).
+			AddRow(5, 4, 10, 20, 5))
+
+	items, totals, err := repo.Stats(context.Background(), service.ConversationArchiveFilter{},
+		service.ConversationArchiveGroupNone, 50, true)
+	require.NoError(t, err)
+	require.Empty(t, items)
+	require.Equal(t, int64(5), totals.Records)
+	require.Equal(t, int64(4), totals.RecordsWithUsage)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
