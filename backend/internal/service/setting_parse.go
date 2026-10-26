@@ -332,6 +332,8 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		SessionBindingEnabled:                  settings[SettingKeySessionBindingEnabled] == "true", // 默认关闭
 		StepUpEnabled:                          settings[SettingKeyStepUpEnabled] == "true",         // 默认关闭
 		AuditLogRetentionDays:                  parseAuditLogRetentionDays(settings[SettingKeyAuditLogRetentionDays]),
+		ConversationArchiveEnabled:             settings[SettingKeyConversationArchiveEnabled] == "true", // 默认关闭
+		ConversationArchiveRetentionDays:       parseConversationArchiveRetentionDays(settings[SettingKeyConversationArchiveRetentionDays]),
 		LoginAgreementEnabled:                  settings[SettingKeyLoginAgreementEnabled] == "true",
 		LoginAgreementMode:                     normalizeLoginAgreementMode(settings[SettingKeyLoginAgreementMode]),
 		LoginAgreementUpdatedAt:                loginAgreementUpdatedAt,

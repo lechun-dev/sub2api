@@ -192,7 +192,11 @@ export default {
         sessionBinding: 'Session IP/UA Binding',
         sessionBindingHint: 'Bind login sessions to the client IP and User-Agent. Any change immediately invalidates the session and forces re-login, raising the bar for stolen-credential reuse.',
         auditRetention: 'Audit Log Retention (days)',
-        auditRetentionHint: 'Audit logs older than this are cleaned up automatically. Set to 0 to keep them forever (manual clear only).'
+        auditRetentionHint: 'Audit logs older than this are cleaned up automatically. Set to 0 to keep them forever (manual clear only).',
+        conversationArchive: 'Conversation Archive',
+        conversationArchiveHint: 'Archive the text conversations between users and AI for later analysis. Only text is stored: images, attachments, tool calls and reasoning are never saved. Off by default.',
+        conversationArchiveRetention: 'Conversation Archive Retention (days)',
+        conversationArchiveRetentionHint: 'Archived conversations older than this are deleted automatically. Set to 0 to keep them forever.'
       },
       panelRateLimit: {
         title: 'Panel API Rate Limiting',

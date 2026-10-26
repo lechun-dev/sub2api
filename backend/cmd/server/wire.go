@@ -130,6 +130,7 @@ func provideCleanup(
 	auditLog *service.AuditLogService,
 	openAIAutoReset *service.OpenAIQuotaAutoResetService,
 	promptAudit *securityaudit.PromptService,
+	conversationArchive *service.ConversationArchiveService,
 	pluginManager *service.PluginManager,
 ) func() {
 	return func() {
@@ -182,6 +183,12 @@ func provideCleanup(
 			{"PromptAuditService", func() error {
 				if promptAudit != nil {
 					return promptAudit.Shutdown(ctx)
+				}
+				return nil
+			}},
+			{"ConversationArchiveService", func() error {
+				if conversationArchive != nil {
+					conversationArchive.Stop()
 				}
 				return nil
 			}},

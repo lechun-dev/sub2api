@@ -135,6 +135,7 @@ vite.config.js
 docs/*
 !docs/client-access-policy.md
 !docs/admin-api-keys.md
+!docs/conversation-archive.md
 !docs/PAYMENT.md
 !docs/PAYMENT_CN.md
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md

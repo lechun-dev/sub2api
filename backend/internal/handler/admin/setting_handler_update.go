@@ -31,11 +31,13 @@ type UpdateSettingsRequest struct {
 	PasswordResetEnabled                bool                         `json:"password_reset_enabled"`
 	FrontendURL                         string                       `json:"frontend_url"`
 	InvitationCodeEnabled               bool                         `json:"invitation_code_enabled"`
-	TotpEnabled                         bool                         `json:"totp_enabled"`             // TOTP 双因素认证
-	PasskeyEnabled                      *bool                        `json:"passkey_enabled"`          // Passkey 登录（省略=保持现值）
-	SessionBindingEnabled               *bool                        `json:"session_binding_enabled"`  // 会话 IP/UA 绑定（省略=保持现值）
-	StepUpEnabled                       *bool                        `json:"step_up_enabled"`          // 敏感操作 step-up 2FA（省略=保持现值）
-	AuditLogRetentionDays               int                          `json:"audit_log_retention_days"` // 审计日志保留天数
+	TotpEnabled                         bool                         `json:"totp_enabled"`                        // TOTP 双因素认证
+	PasskeyEnabled                      *bool                        `json:"passkey_enabled"`                     // Passkey 登录（省略=保持现值）
+	SessionBindingEnabled               *bool                        `json:"session_binding_enabled"`             // 会话 IP/UA 绑定（省略=保持现值）
+	StepUpEnabled                       *bool                        `json:"step_up_enabled"`                     // 敏感操作 step-up 2FA（省略=保持现值）
+	AuditLogRetentionDays               int                          `json:"audit_log_retention_days"`            // 审计日志保留天数
+	ConversationArchiveEnabled          *bool                        `json:"conversation_archive_enabled"`        // 会话存档开关（省略=保持现值）
+	ConversationArchiveRetentionDays    *int                         `json:"conversation_archive_retention_days"` // 会话存档保留天数（省略=保持现值，<=0 永久保留）
 	LoginAgreementEnabled               bool                         `json:"login_agreement_enabled"`
 	LoginAgreementMode                  string                       `json:"login_agreement_mode"`
 	LoginAgreementUpdatedAt             string                       `json:"login_agreement_updated_at"`
@@ -524,6 +526,18 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	stepUpEnabled := previousSettings.StepUpEnabled
 	if req.StepUpEnabled != nil {
 		stepUpEnabled = *req.StepUpEnabled
+	}
+	// 会话存档是可记录全部对话内容的敏感开关：省略字段时保持现值，避免旧客户端全量保存时被意外打开。
+	conversationArchiveEnabled := previousSettings.ConversationArchiveEnabled
+	if req.ConversationArchiveEnabled != nil {
+		conversationArchiveEnabled = *req.ConversationArchiveEnabled
+	}
+	conversationArchiveRetentionDays := previousSettings.ConversationArchiveRetentionDays
+	if req.ConversationArchiveRetentionDays != nil {
+		conversationArchiveRetentionDays = *req.ConversationArchiveRetentionDays
+		if conversationArchiveRetentionDays < 0 {
+			conversationArchiveRetentionDays = 0
+		}
 	}
 	passkeyEnabled := previousSettings.PasskeyEnabled
 	if req.PasskeyEnabled != nil {
@@ -1539,6 +1553,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		SessionBindingEnabled:               sessionBindingEnabled,
 		StepUpEnabled:                       stepUpEnabled,
 		AuditLogRetentionDays:               req.AuditLogRetentionDays,
+		ConversationArchiveEnabled:          conversationArchiveEnabled,
+		ConversationArchiveRetentionDays:    conversationArchiveRetentionDays,
 		LoginAgreementEnabled:               req.LoginAgreementEnabled,
 		LoginAgreementMode:                  loginAgreementMode,
 		LoginAgreementUpdatedAt:             loginAgreementUpdatedAt,
@@ -2208,6 +2224,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		SessionBindingEnabled:                                  updatedSettings.SessionBindingEnabled,
 		StepUpEnabled:                                          updatedSettings.StepUpEnabled,
 		AuditLogRetentionDays:                                  updatedSettings.AuditLogRetentionDays,
+		ConversationArchiveEnabled:                             updatedSettings.ConversationArchiveEnabled,
+		ConversationArchiveRetentionDays:                       updatedSettings.ConversationArchiveRetentionDays,
 		LoginAgreementEnabled:                                  updatedSettings.LoginAgreementEnabled,
 		LoginAgreementMode:                                     updatedSettings.LoginAgreementMode,
 		LoginAgreementUpdatedAt:                                updatedSettings.LoginAgreementUpdatedAt,

@@ -1712,6 +1712,41 @@
                   class="input w-28 text-right"
                 />
               </div>
+
+              <!-- 会话存档 -->
+              <div
+                class="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-dark-700"
+              >
+                <div>
+                  <label class="font-medium text-gray-900 dark:text-white">{{
+                    t("admin.settings.security.conversationArchive")
+                  }}</label>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.security.conversationArchiveHint") }}
+                  </p>
+                </div>
+                <Toggle v-model="form.conversation_archive_enabled" />
+              </div>
+
+              <!-- 会话存档保留天数 -->
+              <div
+                class="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-dark-700"
+              >
+                <div>
+                  <label class="font-medium text-gray-900 dark:text-white">{{
+                    t("admin.settings.security.conversationArchiveRetention")
+                  }}</label>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.security.conversationArchiveRetentionHint") }}
+                  </p>
+                </div>
+                <input
+                  v-model.number="form.conversation_archive_retention_days"
+                  type="number"
+                  min="0"
+                  class="input w-28 text-right"
+                />
+              </div>
             </div>
           </div>
 
@@ -9751,6 +9786,8 @@ const form = reactive<SettingsForm>({
   session_binding_enabled: false,
   step_up_enabled: false,
   audit_log_retention_days: 180,
+  conversation_archive_enabled: false,
+  conversation_archive_retention_days: 90,
   login_agreement_enabled: false,
   login_agreement_mode: "modal",
   login_agreement_updated_at: "2026-03-31",
@@ -11457,6 +11494,11 @@ async function saveSettings() {
       audit_log_retention_days: Number.isFinite(form.audit_log_retention_days)
         ? form.audit_log_retention_days
         : 180,
+      conversation_archive_enabled: form.conversation_archive_enabled,
+      // 空/非法值回退默认 90（与后端 parseConversationArchiveRetentionDays("") 语义一致，0 仍表示永久保留）。
+      conversation_archive_retention_days: Number.isFinite(form.conversation_archive_retention_days)
+        ? form.conversation_archive_retention_days
+        : 90,
       login_agreement_enabled: form.login_agreement_enabled,
       login_agreement_mode: form.login_agreement_mode,
       login_agreement_updated_at: form.login_agreement_updated_at,

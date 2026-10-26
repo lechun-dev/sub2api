@@ -192,7 +192,11 @@ export default {
         sessionBinding: '会话 IP/UA 绑定',
         sessionBindingHint: '将登录会话与客户端 IP 和 User-Agent 绑定，任一变化即强制该会话失效并需重新登录（提升被盗凭证的利用门槛）。',
         auditRetention: '操作日志保留天数',
-        auditRetentionHint: '超过该天数的操作日志将被自动清理；填 0 表示永久保留（仅支持手动清空）。'
+        auditRetentionHint: '超过该天数的操作日志将被自动清理；填 0 表示永久保留（仅支持手动清空）。',
+        conversationArchive: '会话存档',
+        conversationArchiveHint: '归档用户与 AI 的文本会话，供后续分析使用。只保存文本内容，图片、附件、工具调用与思考过程不会写入；默认关闭。',
+        conversationArchiveRetention: '会话存档保留天数',
+        conversationArchiveRetentionHint: '超过该天数的会话存档将被自动清理；填 0 表示永久保留。'
       },
       panelRateLimit: {
         title: '面板接口限流',

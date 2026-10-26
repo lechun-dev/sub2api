@@ -52,6 +52,7 @@ func newGatewayRoutesTestRouterWithConfig(cfg *config.Config, platform ...string
 		nil,
 		unrestrictedClientAccessTestSettings(),
 		nil,
+		nil,
 		cfg,
 	)
 

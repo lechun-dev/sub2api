@@ -421,6 +421,8 @@ export interface SystemSettings {
   session_binding_enabled: boolean; // 会话 IP/UA 绑定
   step_up_enabled: boolean; // 敏感操作 step-up 2FA
   audit_log_retention_days: number; // 审计日志保留天数
+  conversation_archive_enabled: boolean; // 是否归档用户与 AI 的文本会话
+  conversation_archive_retention_days: number; // 会话存档保留天数
   login_agreement_enabled: boolean;
   login_agreement_mode: "modal" | "checkbox" | string;
   login_agreement_updated_at: string;
@@ -775,6 +777,8 @@ export interface UpdateSettingsRequest {
   session_binding_enabled?: boolean; // 会话 IP/UA 绑定
   step_up_enabled?: boolean; // 敏感操作 step-up 2FA
   audit_log_retention_days?: number; // 审计日志保留天数
+  conversation_archive_enabled?: boolean; // 是否归档用户与 AI 的文本会话
+  conversation_archive_retention_days?: number; // 会话存档保留天数
   login_agreement_enabled?: boolean;
   login_agreement_mode?: "modal" | "checkbox" | string;
   login_agreement_updated_at?: string;

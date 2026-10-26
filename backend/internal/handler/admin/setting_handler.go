@@ -150,6 +150,8 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		SessionBindingEnabled:                                  settings.SessionBindingEnabled,
 		StepUpEnabled:                                          settings.StepUpEnabled,
 		AuditLogRetentionDays:                                  settings.AuditLogRetentionDays,
+		ConversationArchiveEnabled:                             settings.ConversationArchiveEnabled,
+		ConversationArchiveRetentionDays:                       settings.ConversationArchiveRetentionDays,
 		LoginAgreementEnabled:                                  settings.LoginAgreementEnabled,
 		LoginAgreementMode:                                     settings.LoginAgreementMode,
 		LoginAgreementUpdatedAt:                                settings.LoginAgreementUpdatedAt,

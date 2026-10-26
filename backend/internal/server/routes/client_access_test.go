@@ -42,7 +42,7 @@ func TestClientAccessGatewayEntrypoints(t *testing.T) {
 		id := int64(38)
 		c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{GroupID: &id, Group: &service.Group{ID: id, Platform: service.PlatformDeepseek}})
 		c.Next()
-	}), nil, nil, nil, service.NewSettingService(clientAccessRouteRepo{raw: string(raw)}, nil), nil, &config.Config{Gateway: config.GatewayConfig{MaxBodySize: 1048576, TextMaxBodySize: 1048576}})
+	}), nil, nil, nil, service.NewSettingService(clientAccessRouteRepo{raw: string(raw)}, nil), nil, nil, &config.Config{Gateway: config.GatewayConfig{MaxBodySize: 1048576, TextMaxBodySize: 1048576}})
 	for _, tc := range []struct{ method, path string }{
 		{"POST", "/v1/chat/completions"}, {"POST", "/chat/completions"}, {"POST", "/v1/messages"},
 		{"POST", "/v1/responses"}, {"POST", "/responses"}, {"POST", "/backend-api/codex/responses"},

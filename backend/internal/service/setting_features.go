@@ -261,6 +261,49 @@ func (s *SettingService) IsStepUpEnabled(ctx context.Context) bool {
 	return value == "true"
 }
 
+// IsConversationArchiveEnabled 是否开启会话存档；默认关闭，读取失败时按关闭处理。
+func (s *SettingService) IsConversationArchiveEnabled(ctx context.Context) bool {
+	if s == nil || s.settingRepo == nil {
+		return false
+	}
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyConversationArchiveEnabled)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(value), "true")
+}
+
+// defaultConversationArchiveRetentionDays 会话存档默认保留天数。
+const defaultConversationArchiveRetentionDays = 90
+
+// GetConversationArchiveRetentionDays 会话存档保留天数（<=0 表示永久保留）。
+func (s *SettingService) GetConversationArchiveRetentionDays(ctx context.Context) int {
+	if s == nil || s.settingRepo == nil {
+		return defaultConversationArchiveRetentionDays
+	}
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyConversationArchiveRetentionDays)
+	if err != nil {
+		return defaultConversationArchiveRetentionDays
+	}
+	return parseConversationArchiveRetentionDays(value)
+}
+
+// parseConversationArchiveRetentionDays 解析保留天数配置，空/非法值回退默认值。
+func parseConversationArchiveRetentionDays(value string) int {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return defaultConversationArchiveRetentionDays
+	}
+	n, err := strconv.Atoi(value)
+	if err != nil {
+		return defaultConversationArchiveRetentionDays
+	}
+	if n < 0 {
+		return 0
+	}
+	return n
+}
+
 // defaultAuditLogRetentionDays 审计日志默认保留天数。
 const defaultAuditLogRetentionDays = 180
 

@@ -294,6 +294,10 @@ const (
 	// 操作审计日志设置
 	SettingKeyAuditLogRetentionDays = "audit_log_retention_days" // 审计日志保留天数（<=0 永久保留），默认 180
 
+	// 会话存档设置
+	SettingKeyConversationArchiveEnabled       = "conversation_archive_enabled"        // 是否归档用户与 AI 的文本会话，默认关闭
+	SettingKeyConversationArchiveRetentionDays = "conversation_archive_retention_days" // 会话存档保留天数（<=0 永久保留），默认 90
+
 	// LinuxDo Connect OAuth 登录设置
 	SettingKeyLinuxDoConnectEnabled      = "linuxdo_connect_enabled"
 	SettingKeyLinuxDoConnectClientID     = "linuxdo_connect_client_id"
