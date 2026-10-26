@@ -122,7 +122,9 @@ GET /api/v1/admin/conversation-archives
 | `include_content` | bool | 默认 `false`，只返回元数据与长度；`true` 时带 `request_messages` / `response_text` |
 | `order` | `asc`/`desc` | 按 `created_at`，默认 `desc` |
 
-返回：`code=0`，`data.items[]` 含 `id/request_id/user_id/username/email/api_key_id/group_id/protocol/endpoint/model/stream/status_code/session_key/message_count/response_chars/truncated/created_at`；`include_content=true` 时额外返回 `request_messages` 与 `response_text`。
+返回：`code=0`，`data.items[]` 含 `id/request_id/user_id/username/email/api_key_id/group_id/group_name/group_platform/protocol/endpoint/model/stream/status_code/session_key/message_count/response_chars/truncated/created_at`；`include_content=true` 时额外返回 `request_messages` 与 `response_text`。
+
+`group_name` / `group_platform` 来自查询时关联的 `groups` 表：分组改名后返回当前名称；分组已删除时两者为空，但 `group_id` 仍保留。
 
 `username`/`email` 来自查询时关联的 `users` 表：用户改名后按姓名查询与返回值都反映当前名称；用户已删除时这两个字段为空，但按 `user_id` 仍可查到历史存档。
 

@@ -32,6 +32,8 @@ type conversationArchiveItem struct {
 	Email           string                               `json:"email,omitempty"`
 	APIKeyID        int64                                `json:"api_key_id"`
 	GroupID         *int64                               `json:"group_id,omitempty"`
+	GroupName       string                               `json:"group_name,omitempty"`
+	GroupPlatform   string                               `json:"group_platform,omitempty"`
 	Protocol        string                               `json:"protocol"`
 	Endpoint        string                               `json:"endpoint"`
 	Model           string                               `json:"model"`
@@ -98,6 +100,8 @@ func mapConversationArchiveItem(record *service.ConversationArchive, includeCont
 		Email:         record.Email,
 		APIKeyID:      record.APIKeyID,
 		GroupID:       record.GroupID,
+		GroupName:     record.GroupName,
+		GroupPlatform: record.GroupPlatform,
 		Protocol:      record.Protocol,
 		Endpoint:      record.Endpoint,
 		Model:         record.Model,

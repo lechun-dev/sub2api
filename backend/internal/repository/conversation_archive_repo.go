@@ -115,10 +115,13 @@ func conversationArchiveNullableInt64Ptr(value *int64) any {
 	return *value
 }
 
-const conversationArchiveFrom = `conversation_archives ca LEFT JOIN users u ON u.id = ca.user_id`
+const conversationArchiveFrom = `conversation_archives ca
+ LEFT JOIN users u ON u.id = ca.user_id
+ LEFT JOIN groups g ON g.id = ca.group_id`
 
 const conversationArchiveMetadataColumns = `ca.id, ca.request_id, ca.user_id, COALESCE(u.username, '') AS username,
- COALESCE(u.email, '') AS email, ca.api_key_id, ca.group_id, ca.protocol, ca.endpoint, ca.model, ca.stream,
+ COALESCE(u.email, '') AS email, ca.api_key_id, ca.group_id, COALESCE(g.name, '') AS group_name,
+ COALESCE(g.platform, '') AS group_platform, ca.protocol, ca.endpoint, ca.model, ca.stream,
  ca.status_code, ca.session_key, jsonb_array_length(ca.request_messages) AS message_count,
  length(ca.response_text) AS response_chars, ca.truncated, ca.created_at`
 
@@ -128,7 +131,7 @@ func (r *conversationArchiveRepository) List(ctx context.Context, filter service
 
 	countFrom := "conversation_archives ca"
 	if filter.UserName != "" {
-		countFrom = conversationArchiveFrom
+		countFrom = `conversation_archives ca LEFT JOIN users u ON u.id = ca.user_id`
 	}
 	var total int64
 	if err := r.sql.QueryRowContext(ctx, `SELECT count(*) FROM `+countFrom+where, args...).Scan(&total); err != nil {
@@ -265,7 +268,8 @@ type conversationArchiveNullables struct {
 func (n *conversationArchiveNullables) destinations(record *service.ConversationArchive) []any {
 	return []any{
 		&record.ID, &record.RequestID, &n.userID, &record.Username, &record.Email, &n.apiKeyID,
-		&n.groupID, &record.Protocol, &record.Endpoint, &record.Model, &record.Stream, &record.StatusCode,
+		&n.groupID, &record.GroupName, &record.GroupPlatform, &record.Protocol, &record.Endpoint,
+		&record.Model, &record.Stream, &record.StatusCode,
 		&n.sessionKey, &record.MessageCount, &record.ResponseChars, &record.Truncated, &record.CreatedAt,
 	}
 }

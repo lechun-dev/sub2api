@@ -66,6 +66,8 @@ func TestConversationArchiveHandlerListParsesFilters(t *testing.T) {
 			UserID:        7,
 			Username:      "张三",
 			Email:         "zhang@example.com",
+			GroupName:     "Claude 分组",
+			GroupPlatform: "anthropic",
 			APIKeyID:      9,
 			Protocol:      service.ConversationArchiveProtocolAnthropicMessages,
 			Endpoint:      "/v1/messages",
@@ -97,6 +99,8 @@ func TestConversationArchiveHandlerListParsesFilters(t *testing.T) {
 	item := items[0].(map[string]any)
 	require.Equal(t, "张三", item["username"])
 	require.Equal(t, "zhang@example.com", item["email"])
+	require.Equal(t, "Claude 分组", item["group_name"])
+	require.Equal(t, "anthropic", item["group_platform"])
 	require.Equal(t, "hello", item["response_text"])
 	require.Len(t, item["request_messages"], 1)
 

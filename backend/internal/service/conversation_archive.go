@@ -60,6 +60,8 @@ type ConversationArchive struct {
 	Email         string                       `json:"email,omitempty"`
 	APIKeyID      int64                        `json:"api_key_id"`
 	GroupID       *int64                       `json:"group_id,omitempty"`
+	GroupName     string                       `json:"group_name,omitempty"`
+	GroupPlatform string                       `json:"group_platform,omitempty"`
 	Protocol      string                       `json:"protocol"`
 	Endpoint      string                       `json:"endpoint"`
 	Model         string                       `json:"model"`
@@ -78,11 +80,11 @@ type ConversationArchive struct {
 
 // ConversationArchiveFilter 是管理端查询存档的过筛条件。
 type ConversationArchiveFilter struct {
-	Page       int
-	PageSize   int
-	UserID     *int64
-	APIKeyID   *int64
-	GroupID    *int64
+	Page     int
+	PageSize int
+	UserID   *int64
+	APIKeyID *int64
+	GroupID  *int64
 	// UserName 按用户姓名（用户名或邮箱）模糊匹配。
 	UserName   string
 	RequestID  string

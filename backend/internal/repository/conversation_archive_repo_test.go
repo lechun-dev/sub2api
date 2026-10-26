@@ -73,7 +73,7 @@ func TestConversationArchiveRepositoryDeleteBefore(t *testing.T) {
 
 func conversationArchiveListRowColumns(includeContent bool) []string {
 	columns := []string{
-		"id", "request_id", "user_id", "username", "email", "api_key_id", "group_id", "protocol", "endpoint", "model",
+		"id", "request_id", "user_id", "username", "email", "api_key_id", "group_id", "group_name", "group_platform", "protocol", "endpoint", "model",
 		"stream", "status_code", "session_key", "message_count", "response_chars", "truncated", "created_at",
 	}
 	if includeContent {
@@ -104,7 +104,7 @@ func TestConversationArchiveRepositoryListFilters(t *testing.T) {
 
 	createdAt := time.Now().UTC()
 	rows := sqlmock.NewRows(conversationArchiveListRowColumns(false)).
-		AddRow(1, "req-1", int64(7), "张三", "zhang@example.com", int64(9), nil, "anthropic_messages", "/v1/messages", "claude",
+		AddRow(1, "req-1", int64(7), "张三", "zhang@example.com", int64(9), nil, "", "", "anthropic_messages", "/v1/messages", "claude",
 			false, 200, "session-1", 3, 120, false, createdAt)
 	mock.ExpectQuery(`SELECT ca.id, ca.request_id, ca.user_id, COALESCE\(u.username`).
 		WithArgs(int64(7), "claude", "%hello%", 20, 0).
@@ -142,7 +142,7 @@ func TestConversationArchiveRepositoryListWithContent(t *testing.T) {
 	mock.ExpectQuery(`SELECT count\(\*\) FROM conversation_archives ca$`).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 	rows := sqlmock.NewRows(conversationArchiveListRowColumns(true)).
-		AddRow(2, "req-2", nil, "", "", nil, nil, "openai_chat", "/v1/chat/completions", "gpt-5",
+		AddRow(2, "req-2", nil, "", "", nil, nil, "", "", "openai_chat", "/v1/chat/completions", "gpt-5",
 			true, 200, nil, 1, 12, false, time.Now().UTC(),
 			[]byte(`[{"role":"user","content":"hi"}]`), "hello")
 	mock.ExpectQuery(`SELECT ca.id, ca.request_id`).
@@ -167,7 +167,7 @@ func TestConversationArchiveRepositoryGetByID(t *testing.T) {
 	repo := NewConversationArchiveRepository(db)
 
 	rows := sqlmock.NewRows(conversationArchiveListRowColumns(true)).
-		AddRow(3, "req-3", int64(7), "李四", "li@example.com", int64(9), int64(2), "gemini", "/v1beta/models/gemini-2.5-pro:generateContent",
+		AddRow(3, "req-3", int64(7), "李四", "li@example.com", int64(9), int64(2), "Claude 分组", "anthropic", "gemini", "/v1beta/models/gemini-2.5-pro:generateContent",
 			"gemini-2.5-pro", false, 200, nil, 2, 8, false, time.Now().UTC(),
 			[]byte(`[{"role":"user","content":"hi"}]`), "hello")
 	mock.ExpectQuery(`SELECT ca.id, ca.request_id`).
@@ -180,6 +180,8 @@ func TestConversationArchiveRepositoryGetByID(t *testing.T) {
 	require.Equal(t, int64(3), record.ID)
 	require.NotNil(t, record.GroupID)
 	require.Equal(t, int64(2), *record.GroupID)
+	require.Equal(t, "Claude 分组", record.GroupName)
+	require.Equal(t, "anthropic", record.GroupPlatform)
 	require.Equal(t, "hello", record.ResponseText)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
@@ -223,7 +225,7 @@ func TestConversationArchiveRepositoryListByUsername(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
 	rows := sqlmock.NewRows(conversationArchiveListRowColumns(false)).
-		AddRow(4, "req-4", int64(7), "张三", "zhang@example.com", int64(9), nil, "anthropic_messages", "/v1/messages", "claude",
+		AddRow(4, "req-4", int64(7), "张三", "zhang@example.com", int64(9), nil, "", "", "anthropic_messages", "/v1/messages", "claude",
 			false, 200, nil, 1, 5, false, time.Now().UTC())
 	mock.ExpectQuery(`SELECT ca.id, ca.request_id`).
 		WithArgs("%张三%", 10, 0).
