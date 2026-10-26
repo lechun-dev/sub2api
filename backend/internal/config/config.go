@@ -70,6 +70,7 @@ type Config struct {
 	Log                     LogConfig                     `mapstructure:"log"`
 	CORS                    CORSConfig                    `mapstructure:"cors"`
 	Security                SecurityConfig                `mapstructure:"security"`
+	InternalIdentity        InternalIdentityConfig        `mapstructure:"internal_identity"`
 	Billing                 BillingConfig                 `mapstructure:"billing"`
 	Turnstile               TurnstileConfig               `mapstructure:"turnstile"`
 	Database                DatabaseConfig                `mapstructure:"database"`
@@ -743,6 +744,14 @@ type SecurityConfig struct {
 	TrustForwardedIPForAPIKeyACL  bool                                       `mapstructure:"trust_forwarded_ip_for_api_key_acl"`
 	ForwardedClientIPHeaders      []string                                   `mapstructure:"forwarded_client_ip_headers" json:"forwarded_client_ip_headers" yaml:"forwarded_client_ip_headers"`
 	forwardedClientIPSettingsLive *atomic.Pointer[ForwardedClientIPSettings] `mapstructure:"-" json:"-" yaml:"-"`
+}
+
+// InternalIdentityConfig 配置内部系统（如 lechun-tools）通过签名身份断言调用只读接口。
+// 共享密钥只用于校验「某次请求代表哪个邮箱」，不具备管理员 API Key 的其他权限。
+type InternalIdentityConfig struct {
+	Enabled        bool   `mapstructure:"enabled"`
+	Secret         string `mapstructure:"secret"`
+	MaxSkewSeconds int    `mapstructure:"max_skew_seconds"`
 }
 
 func NormalizeForwardedClientIPHeaders(headers []string) ([]string, error) {
@@ -2043,6 +2052,9 @@ func setDefaults() {
 	viper.SetDefault("simple_mode_key_rate_limit_enabled", false)
 
 	// Server
+	viper.SetDefault("internal_identity.enabled", false)
+	viper.SetDefault("internal_identity.secret", "")
+	viper.SetDefault("internal_identity.max_skew_seconds", 300)
 	viper.SetDefault("server.host", "0.0.0.0")
 	viper.SetDefault("server.port", 8080)
 	viper.SetDefault("server.mode", "release")

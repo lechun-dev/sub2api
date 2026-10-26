@@ -627,23 +627,6 @@ func (s *adminServiceImpl) ListAdminAPIKeys(ctx context.Context, page, pageSize 
 	return result, paginationResult.Total, nil
 }
 
-// UserByEmailLookup 是按邮箱精确查询用户的窄接口，供内部身份校验使用。
-type UserByEmailLookup interface {
-	FindUserByEmail(ctx context.Context, email string) (*User, error)
-}
-
-// FindUserByEmail 按邮箱精确查找用户；不存在时返回 ErrUserNotFound。
-func (s *adminServiceImpl) FindUserByEmail(ctx context.Context, email string) (*User, error) {
-	email = strings.TrimSpace(email)
-	if email == "" {
-		return nil, infraerrors.BadRequest("EMAIL_REQUIRED", "email is required")
-	}
-	if s.userRepo == nil {
-		return nil, errors.New("admin user lookup is unavailable")
-	}
-	return s.userRepo.GetByEmail(ctx, email)
-}
-
 // APIKeyEmailLookup 是按邮箱查询用户及其 API Key 的窄接口，供管理端只读查询使用。
 type APIKeyEmailLookup interface {
 	FindAPIKeysByEmail(ctx context.Context, email string, status string) (*User, []APIKey, error)

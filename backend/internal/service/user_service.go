@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
@@ -306,6 +307,14 @@ func NewUserService(userRepo UserRepository, settingRepo SettingRepository, auth
 		authCacheInvalidator: authCacheInvalidator,
 		billingCache:         billingCache,
 	}
+}
+
+// GetByEmail 按邮箱查找用户；内部签名身份校验使用。
+func (s *UserService) GetByEmail(ctx context.Context, email string) (*User, error) {
+	if s == nil || s.userRepo == nil {
+		return nil, errors.New("user repository unavailable")
+	}
+	return s.userRepo.GetByEmail(ctx, email)
 }
 
 // GetFirstAdmin 获取首个管理员用户（用于 Admin API Key 认证）

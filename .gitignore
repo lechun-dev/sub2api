@@ -136,8 +136,8 @@ docs/*
 !docs/client-access-policy.md
 !docs/admin-api-keys.md
 !docs/conversation-archive.md
+!docs/internal-conversation-api.md
 !docs/admin-api-key-lookup.md
-!docs/admin-user-lookup.md
 !docs/PAYMENT.md
 !docs/PAYMENT_CN.md
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md

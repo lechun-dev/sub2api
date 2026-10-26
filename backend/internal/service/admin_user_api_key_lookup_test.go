@@ -78,6 +78,50 @@ func TestAdminFindAPIKeysByEmailRepoError(t *testing.T) {
 	require.ErrorIs(t, err, boom)
 }
 
+func TestAdminFindAPIKeysByEmail(t *testing.T) {
+	t.Parallel()
+
+	userRepo := &apiKeyLookupUserRepo{user: &User{ID: 7, Email: "zhang@example.com", Username: "张三"}}
+	keyRepo := &apiKeyLookupKeyRepo{keys: []APIKey{{ID: 11, UserID: 7, Name: "default"}}}
+	svc := &adminServiceImpl{userRepo: userRepo, apiKeyRepo: keyRepo}
+
+	user, keys, err := svc.FindAPIKeysByEmail(context.Background(), "  zhang@example.com  ", "active")
+	require.NoError(t, err)
+	require.Equal(t, int64(7), user.ID)
+	require.Len(t, keys, 1)
+	require.Equal(t, "zhang@example.com", userRepo.seenEmail)
+	require.Equal(t, int64(7), keyRepo.seenUserID)
+	require.Equal(t, "active", keyRepo.seenStatus)
+}
+
+func TestAdminFindAPIKeysByEmailRequiresEmail(t *testing.T) {
+	t.Parallel()
+
+	svc := &adminServiceImpl{userRepo: &apiKeyLookupUserRepo{}, apiKeyRepo: &apiKeyLookupKeyRepo{}}
+	_, _, err := svc.FindAPIKeysByEmail(context.Background(), "   ", "")
+	require.Error(t, err)
+}
+
+func TestAdminFindAPIKeysByEmailUserNotFound(t *testing.T) {
+	t.Parallel()
+
+	userRepo := &apiKeyLookupUserRepo{err: ErrUserNotFound}
+	svc := &adminServiceImpl{userRepo: userRepo, apiKeyRepo: &apiKeyLookupKeyRepo{}}
+	_, _, err := svc.FindAPIKeysByEmail(context.Background(), "missing@example.com", "")
+	require.ErrorIs(t, err, ErrUserNotFound)
+}
+
+func TestAdminFindAPIKeysByEmailRepoError(t *testing.T) {
+	t.Parallel()
+
+	boom := errors.New("boom")
+	userRepo := &apiKeyLookupUserRepo{user: &User{ID: 7}}
+	keyRepo := &apiKeyLookupKeyRepo{err: boom}
+	svc := &adminServiceImpl{userRepo: userRepo, apiKeyRepo: keyRepo}
+	_, _, err := svc.FindAPIKeysByEmail(context.Background(), "zhang@example.com", "")
+	require.ErrorIs(t, err, boom)
+}
+
 func TestAdminFindUserByEmail(t *testing.T) {
 	t.Parallel()
 

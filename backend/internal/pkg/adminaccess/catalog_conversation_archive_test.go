@@ -45,12 +45,3 @@ func TestAPIKeyReadByEmailPermission(t *testing.T) {
 	require.False(t, RouteAllowed(policy, "POST", "/api/v1/admin/api-keys/issue"))
 	require.False(t, RouteAllowed(Policy{}, "GET", "/api/v1/admin/api-keys/by-email"))
 }
-
-func TestUsersReadByEmailPermission(t *testing.T) {
-	t.Parallel()
-
-	policy := Policy{GlobalPermissions: []string{"users.read_by_email"}}
-	require.True(t, RouteAllowed(policy, "GET", "/api/v1/admin/users/by-email"))
-	require.False(t, RouteAllowed(policy, "GET", "/api/v1/admin/users"))
-	require.False(t, RouteAllowed(Policy{}, "GET", "/api/v1/admin/users/by-email"))
-}

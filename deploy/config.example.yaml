@@ -1313,3 +1313,16 @@ image_storage:
   presign_expiry_hours: 24
   # 当上游返回的是图片 url 时，下载该图片再转存的字节上限（默认 32MB）
   max_download_bytes: 33554432
+
+# =============================================================================
+# Internal Signed Identity (lechun-tools -> sub2api read-only APIs)
+# 内部签名身份断言：调用方用共享密钥声明「本次请求代表哪个邮箱」，
+# sub2api 验签后再按用户角色判断是否管理员。共享密钥只用于 /api/v1/internal/*。
+# =============================================================================
+internal_identity:
+  # 默认关闭；关闭时 /api/v1/internal/* 返回 404
+  enabled: false
+  # 共享密钥（也可用环境变量 INTERNAL_IDENTITY_SECRET 覆盖），建议至少 32 字节随机值
+  secret: ""
+  # 允许的时间戳偏差（秒），超出即拒绝，限制重放窗口
+  max_skew_seconds: 300
