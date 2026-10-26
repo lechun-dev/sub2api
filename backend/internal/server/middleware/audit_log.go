@@ -123,6 +123,7 @@ var auditSensitiveReads = map[string]string{
 	"GET /api/v1/admin/api-keys/by-email":              "admin.api_keys.read_by_email",
 	"GET /api/v1/internal/conversation-archives":       "internal.conversation_archives.read",
 	"GET /api/v1/internal/conversation-archives/stats": "internal.conversation_archives.read",
+	"GET /api/v1/internal/usage/stats":                 "internal.usage_stats.read",
 	"GET /api/v1/internal/conversation-archives/:id":   "internal.conversation_archives.read",
 }
 

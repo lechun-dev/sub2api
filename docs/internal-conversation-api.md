@@ -96,6 +96,59 @@ GET /api/v1/internal/conversation-archives/stats
 
 `records_with_usage` 表示有 usage 的记录数；token 字段只累计非 NULL 值，上游未返回时不会按 0 计入。
 
+## 3.4 计费口径 token 统计
+
+```
+GET /api/v1/internal/usage/stats
+```
+
+数据来自 `usage_logs`，口径与计费一致，不受“上游流式未返回 usage”影响。
+
+| 参数 | 说明 |
+|---|---|
+| `user_id` / `api_key_id` / `group_id` | 精确筛选 |
+| `username` | 按用户名/邮箱模糊筛选 |
+| `model` | 模型精确筛选 |
+| `start_time` / `end_time` | RFC3339 或 `YYYY-MM-DD`；不传默认最近 30 天，范围上限 366 天；`end_time` 为开区间，date-only 时按次日 00:00 UTC |
+| `group_by` | `none` / `user` / `date`（UTC）/ `model` / `group` / `api_key` |
+| `limit` | 分组条数，默认 50，上限 200，按输入+输出 token 排序 |
+| `order` | `asc` / `desc`，默认 `desc` |
+
+返回：
+
+```json
+{
+  "group_by": "user",
+  "order": "desc",
+  "start_time": "2026-10-01T00:00:00Z",
+  "end_time": "2026-11-01T00:00:00Z",
+  "items": [
+    {
+      "key": "7",
+      "user_id": 7,
+      "username": "张三",
+      "email": "zhang@example.com",
+      "requests": 10,
+      "input_tokens": 1000,
+      "output_tokens": 2000,
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 500,
+      "total_tokens": 3000,
+      "total_cost": 0.12
+    }
+  ],
+  "totals": {
+    "requests": 10,
+    "input_tokens": 1000,
+    "output_tokens": 2000,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 500,
+    "total_tokens": 3000,
+    "total_cost": 0.12
+  }
+}
+```
+
 ## 4. 配置
 
 ```yaml

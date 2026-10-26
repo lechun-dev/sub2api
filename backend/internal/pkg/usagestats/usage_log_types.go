@@ -275,6 +275,8 @@ type UsageLogFilters struct {
 	GroupID   int64
 	RequestID string
 	Model     string
+	// UserName 按用户名或邮箱模糊匹配，仅内部统计接口使用。
+	UserName string
 	// ModelFilterSource controls how Model is matched. Empty preserves raw usage_logs.model semantics.
 	ModelFilterSource     string
 	RequestType           *int16
