@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -136,4 +137,81 @@ func (h *AdminAPIKeyIssuanceHandler) List(c *gin.Context) {
 		out = append(out, dto.APIKeyFromService(&keys[i]))
 	}
 	response.Paginated(c, out, total, page, pageSize)
+}
+
+type adminAPIKeyLookupUser struct {
+	ID       int64  `json:"id"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Status   string `json:"status"`
+}
+
+type adminAPIKeyLookupItem struct {
+	ID         int64      `json:"id"`
+	Name       string     `json:"name"`
+	Key        string     `json:"key"`
+	Status     string     `json:"status"`
+	GroupID    *int64     `json:"group_id,omitempty"`
+	GroupName  string     `json:"group_name,omitempty"`
+	Quota      float64    `json:"quota"`
+	QuotaUsed  float64    `json:"quota_used"`
+	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
+	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+}
+
+type adminAPIKeyLookupResponse struct {
+	User    adminAPIKeyLookupUser   `json:"user"`
+	APIKeys []adminAPIKeyLookupItem `json:"api_keys"`
+	Total   int                     `json:"total"`
+}
+
+// GetByEmail 按邮箱精确查找用户及其 API Key。
+// GET /api/v1/admin/api-keys/by-email?email=user@example.com&status=active
+func (h *AdminAPIKeyIssuanceHandler) GetByEmail(c *gin.Context) {
+	lookup, ok := h.adminService.(service.APIKeyEmailLookup)
+	if !ok {
+		response.InternalError(c, "admin API key lookup is unavailable")
+		return
+	}
+	email := strings.TrimSpace(c.Query("email"))
+	if email == "" {
+		response.BadRequest(c, "email is required")
+		return
+	}
+	user, keys, err := lookup.FindAPIKeysByEmail(c.Request.Context(), email, c.Query("status"))
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	out := adminAPIKeyLookupResponse{
+		User: adminAPIKeyLookupUser{
+			ID:       user.ID,
+			Username: user.Username,
+			Email:    user.Email,
+			Status:   user.Status,
+		},
+		APIKeys: make([]adminAPIKeyLookupItem, 0, len(keys)),
+		Total:   len(keys),
+	}
+	for i := range keys {
+		key := &keys[i]
+		item := adminAPIKeyLookupItem{
+			ID:         key.ID,
+			Name:       key.Name,
+			Key:        key.Key,
+			Status:     key.Status,
+			GroupID:    key.GroupID,
+			Quota:      key.Quota,
+			QuotaUsed:  key.QuotaUsed,
+			ExpiresAt:  key.ExpiresAt,
+			LastUsedAt: key.LastUsedAt,
+			CreatedAt:  key.CreatedAt,
+		}
+		if key.Group != nil {
+			item.GroupName = key.Group.Name
+		}
+		out.APIKeys = append(out.APIKeys, item)
+	}
+	response.Success(c, out)
 }

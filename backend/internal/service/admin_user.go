@@ -627,6 +627,41 @@ func (s *adminServiceImpl) ListAdminAPIKeys(ctx context.Context, page, pageSize 
 	return result, paginationResult.Total, nil
 }
 
+// APIKeyEmailLookup 是按邮箱查询用户及其 API Key 的窄接口，供管理端只读查询使用。
+type APIKeyEmailLookup interface {
+	FindAPIKeysByEmail(ctx context.Context, email string, status string) (*User, []APIKey, error)
+}
+
+// FindAPIKeysByEmail 按邮箱精确查找用户，并返回其全部 API Key（含禁用/过期，可按 status 过滤）。
+func (s *adminServiceImpl) FindAPIKeysByEmail(ctx context.Context, email string, status string) (*User, []APIKey, error) {
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return nil, nil, infraerrors.BadRequest("EMAIL_REQUIRED", "email is required")
+	}
+	if s.userRepo == nil || s.apiKeyRepo == nil {
+		return nil, nil, errors.New("admin API key lookup is unavailable")
+	}
+	user, err := s.userRepo.GetByEmail(ctx, email)
+	if err != nil {
+		return nil, nil, err
+	}
+	filters := APIKeyListFilters{Status: strings.TrimSpace(status)}
+	if lister, ok := s.apiKeyRepo.(interface {
+		ListAllByUserID(context.Context, int64, APIKeyListFilters) ([]APIKey, error)
+	}); ok {
+		keys, err := lister.ListAllByUserID(ctx, user.ID, filters)
+		if err != nil {
+			return nil, nil, err
+		}
+		return user, keys, nil
+	}
+	keys, _, err := s.apiKeyRepo.ListByUserID(ctx, user.ID, pagination.PaginationParams{Page: 1, PageSize: 1000}, filters)
+	if err != nil {
+		return nil, nil, err
+	}
+	return user, keys, nil
+}
+
 func (s *adminServiceImpl) GetUserRPMStatus(ctx context.Context, userID int64) (*UserRPMStatus, error) {
 	if s.userRPMCache == nil {
 		return nil, ErrRPMStatusUnavailable

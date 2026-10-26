@@ -33,3 +33,15 @@ func TestConversationArchivePermissionCatalogEntry(t *testing.T) {
 	}
 	require.True(t, found, "conversation_archive.read must be registered in the permission catalog")
 }
+
+func TestAPIKeyReadByEmailPermission(t *testing.T) {
+	t.Parallel()
+
+	policy := Policy{GlobalPermissions: []string{"api_keys.read_by_email"}}
+	require.True(t, RouteAllowed(policy, "GET", "/api/v1/admin/api-keys/by-email"))
+
+	// 该权限只覆盖按邮箱查询，不隐式授予全量密钥库存路由。
+	require.False(t, RouteAllowed(policy, "GET", "/api/v1/admin/api-keys"))
+	require.False(t, RouteAllowed(policy, "POST", "/api/v1/admin/api-keys/issue"))
+	require.False(t, RouteAllowed(Policy{}, "GET", "/api/v1/admin/api-keys/by-email"))
+}

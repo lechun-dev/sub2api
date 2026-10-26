@@ -202,6 +202,8 @@ func registerAdminAPIKeyRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	apiKeys := admin.Group("/api-keys")
 	{
 		apiKeys.GET("", h.Admin.APIKeyIssuance.List)
+		// 按邮箱精确查找用户及其 API Key（含明文，读取会记审计）
+		apiKeys.GET("/by-email", h.Admin.APIKeyIssuance.GetByEmail)
 		apiKeys.POST("/issue", h.Admin.APIKeyIssuance.Issue)
 		apiKeys.PUT("/:id", h.Admin.APIKey.UpdateGroup)
 		apiKeys.PATCH("/:id", h.Admin.APIKey.Update)

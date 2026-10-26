@@ -120,6 +120,7 @@ var auditSensitiveReads = map[string]string{
 	"GET /api/v1/admin/data-management/s3/config": "admin.data_management.s3_config.read",
 	"GET /api/v1/admin/conversation-archives":     "admin.conversation_archives.read",
 	"GET /api/v1/admin/conversation-archives/:id": "admin.conversation_archives.read",
+	"GET /api/v1/admin/api-keys/by-email":         "admin.api_keys.read_by_email",
 }
 
 // auditActionOverrides 变更类请求的动作名精确映射（未命中时自动推导）。
