@@ -27,7 +27,7 @@ const (
 	ConversationArchiveProtocolGemini = "gemini"
 
 	// ConversationArchiveRequestLimitBytes 单个请求体最多归档多少字节，超出则不存档该请求。
-	ConversationArchiveRequestLimitBytes = 1 << 20 // 1 MiB
+	ConversationArchiveRequestLimitBytes = 8 << 20 // 8 MiB，覆盖带图片/长上下文的请求
 	// ConversationArchiveResponseLimitBytes 单个响应最多捕获多少字节，超出后标记 truncated。
 	ConversationArchiveResponseLimitBytes = 4 << 20 // 4 MiB
 

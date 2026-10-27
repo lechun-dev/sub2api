@@ -49,7 +49,7 @@
 ## 写入路径与取舍
 
 - 网关中间件在 API Key 鉴权之后包装请求体（tee）与响应 Writer（tee），请求结束后解析并异步入队；不侵入 8+8 个流式/非流式转发函数。
-- 请求体上限 1 MiB：超过直接放弃该请求（避免保存不完整对话）。
+- 请求体上限 8 MiB：超过直接放弃该请求（避免保存不完整对话）。
 - 响应捕获上限 4 MiB：超过继续服务客户端，但存档标记 `truncated`。
 - 单条消息 32K 字符、全部消息 128K 字符、助手回复 64K 字符，超出截断。
 - 独立有界队列（8192）+ 批量写入（100 条 / 500ms），溢出丢弃并计数；存档是可丢失的派生数据，不阻塞也不重试。
@@ -168,5 +168,5 @@ curl -sG https://your-host/api/v1/admin/conversation-archives \
 1. 先不带 `include_content` 翻页，按元数据定位候选记录，减少上下文占用。
 2. 对候选记录用详情接口（或小页 `include_content=true`）取原文。
 3. `keyword` 是 `ILIKE '%...%'`，大表上请始终带 `start_time`/`end_time` 或用户维度，避免全表扫描。
-4. `truncated=true` 表示内容被截断（请求超 1 MiB 会整条放弃，不会出现半条对话）。
+4. `truncated=true` 表示内容被截断（请求超 8 MiB 会整条放弃，不会出现半条对话）。
 5. token 用量来自客户端收到的响应（Anthropic / OpenAI / Gemini 的 usage 字段）；上游流式不返回 usage 时为空，不要当作 0 参与均值计算，口径以 `usage_logs` 为准。
