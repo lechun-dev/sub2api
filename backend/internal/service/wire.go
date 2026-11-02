@@ -603,8 +603,12 @@ func ProvideAuditLogService(repo AuditLogRepository, settingService *SettingServ
 
 // ProvideConversationArchiveService 创建会话存档服务并启动异步写入与保留期清理协程。
 // 停止逻辑挂在 cmd/server 的 provideCleanup。
-func ProvideConversationArchiveService(repo ConversationArchiveRepository, settingService *SettingService) *ConversationArchiveService {
-	svc := NewConversationArchiveService(repo, settingService)
+func ProvideConversationArchiveService(repo ConversationArchiveRepository, settingService *SettingService, cfg *config.Config) *ConversationArchiveService {
+	var excluded []string
+	if cfg != nil {
+		excluded = cfg.ConversationArchive.ExcludedHarnessUserIDs
+	}
+	svc := NewConversationArchiveService(repo, settingService, WithConversationArchiveExcludedClients(excluded))
 	svc.Start()
 	return svc
 }

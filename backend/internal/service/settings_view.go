@@ -27,10 +27,13 @@ type SystemSettings struct {
 	AuditLogRetentionDays               int  // 审计日志保留天数（<=0 永久保留）
 	ConversationArchiveEnabled          bool // 是否归档用户与 AI 的文本会话
 	ConversationArchiveRetentionDays    int  // 会话存档保留天数（<=0 永久保留）
-	LoginAgreementEnabled               bool
-	LoginAgreementMode                  string
-	LoginAgreementUpdatedAt             string
-	LoginAgreementDocuments             []LoginAgreementDocument
+	// ConversationArchiveExcludedHarnessUserIDs 是会话存档排除的本机客户端标识
+	// （DSH 的 x-deepseek-harness-user-id），命中的请求完全不归档。
+	ConversationArchiveExcludedHarnessUserIDs []string
+	LoginAgreementEnabled                     bool
+	LoginAgreementMode                        string
+	LoginAgreementUpdatedAt                   string
+	LoginAgreementDocuments                   []LoginAgreementDocument
 
 	SMTPHost               string
 	SMTPPort               int

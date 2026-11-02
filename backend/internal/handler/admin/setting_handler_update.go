@@ -23,25 +23,27 @@ import (
 // UpdateSettingsRequest 更新设置请求
 type UpdateSettingsRequest struct {
 	// 注册设置
-	RegistrationEnabled                 bool                         `json:"registration_enabled"`
-	EmailVerifyEnabled                  bool                         `json:"email_verify_enabled"`
-	RegistrationEmailSuffixWhitelist    []string                     `json:"registration_email_suffix_whitelist"`
-	RegistrationEmailDomainQuotaEnabled *bool                        `json:"registration_email_domain_quota_enabled"` // 非白名单域名限量注册开关（省略=保持现值）
-	PromoCodeEnabled                    bool                         `json:"promo_code_enabled"`
-	PasswordResetEnabled                bool                         `json:"password_reset_enabled"`
-	FrontendURL                         string                       `json:"frontend_url"`
-	InvitationCodeEnabled               bool                         `json:"invitation_code_enabled"`
-	TotpEnabled                         bool                         `json:"totp_enabled"`                        // TOTP 双因素认证
-	PasskeyEnabled                      *bool                        `json:"passkey_enabled"`                     // Passkey 登录（省略=保持现值）
-	SessionBindingEnabled               *bool                        `json:"session_binding_enabled"`             // 会话 IP/UA 绑定（省略=保持现值）
-	StepUpEnabled                       *bool                        `json:"step_up_enabled"`                     // 敏感操作 step-up 2FA（省略=保持现值）
-	AuditLogRetentionDays               int                          `json:"audit_log_retention_days"`            // 审计日志保留天数
-	ConversationArchiveEnabled          *bool                        `json:"conversation_archive_enabled"`        // 会话存档开关（省略=保持现值）
-	ConversationArchiveRetentionDays    *int                         `json:"conversation_archive_retention_days"` // 会话存档保留天数（省略=保持现值，<=0 永久保留）
-	LoginAgreementEnabled               bool                         `json:"login_agreement_enabled"`
-	LoginAgreementMode                  string                       `json:"login_agreement_mode"`
-	LoginAgreementUpdatedAt             string                       `json:"login_agreement_updated_at"`
-	LoginAgreementDocuments             []dto.LoginAgreementDocument `json:"login_agreement_documents"`
+	RegistrationEnabled                 bool     `json:"registration_enabled"`
+	EmailVerifyEnabled                  bool     `json:"email_verify_enabled"`
+	RegistrationEmailSuffixWhitelist    []string `json:"registration_email_suffix_whitelist"`
+	RegistrationEmailDomainQuotaEnabled *bool    `json:"registration_email_domain_quota_enabled"` // 非白名单域名限量注册开关（省略=保持现值）
+	PromoCodeEnabled                    bool     `json:"promo_code_enabled"`
+	PasswordResetEnabled                bool     `json:"password_reset_enabled"`
+	FrontendURL                         string   `json:"frontend_url"`
+	InvitationCodeEnabled               bool     `json:"invitation_code_enabled"`
+	TotpEnabled                         bool     `json:"totp_enabled"`                        // TOTP 双因素认证
+	PasskeyEnabled                      *bool    `json:"passkey_enabled"`                     // Passkey 登录（省略=保持现值）
+	SessionBindingEnabled               *bool    `json:"session_binding_enabled"`             // 会话 IP/UA 绑定（省略=保持现值）
+	StepUpEnabled                       *bool    `json:"step_up_enabled"`                     // 敏感操作 step-up 2FA（省略=保持现值）
+	AuditLogRetentionDays               int      `json:"audit_log_retention_days"`            // 审计日志保留天数
+	ConversationArchiveEnabled          *bool    `json:"conversation_archive_enabled"`        // 会话存档开关（省略=保持现值）
+	ConversationArchiveRetentionDays    *int     `json:"conversation_archive_retention_days"` // 会话存档保留天数（省略=保持现值，<=0 永久保留）
+	// 会话存档排除的本机客户端标识（DSH 的 x-deepseek-harness-user-id，省略=保持现值）
+	ConversationArchiveExcludedHarnessUserIDs *[]string                    `json:"conversation_archive_excluded_harness_user_ids"`
+	LoginAgreementEnabled                     bool                         `json:"login_agreement_enabled"`
+	LoginAgreementMode                        string                       `json:"login_agreement_mode"`
+	LoginAgreementUpdatedAt                   string                       `json:"login_agreement_updated_at"`
+	LoginAgreementDocuments                   []dto.LoginAgreementDocument `json:"login_agreement_documents"`
 
 	// 邮件服务设置
 	SMTPHost     string `json:"smtp_host"`
@@ -538,6 +540,11 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		if conversationArchiveRetentionDays < 0 {
 			conversationArchiveRetentionDays = 0
 		}
+	}
+	// 排除名单同样是敏感项：省略字段时保持现值，避免旧客户端全量保存时把本机排除规则冲掉。
+	conversationArchiveExcludedHarnessUserIDs := previousSettings.ConversationArchiveExcludedHarnessUserIDs
+	if req.ConversationArchiveExcludedHarnessUserIDs != nil {
+		conversationArchiveExcludedHarnessUserIDs = service.NormalizeConversationArchiveExcludedHarnessUserIDs(*req.ConversationArchiveExcludedHarnessUserIDs)
 	}
 	passkeyEnabled := previousSettings.PasskeyEnabled
 	if req.PasskeyEnabled != nil {
@@ -1540,47 +1547,48 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		DefaultPlatformQuotas:       req.DefaultPlatformQuotas,
 		AccountSchedulingThresholds: req.AccountSchedulingThresholds,
 
-		RegistrationEnabled:                 req.RegistrationEnabled,
-		EmailVerifyEnabled:                  req.EmailVerifyEnabled,
-		RegistrationEmailSuffixWhitelist:    req.RegistrationEmailSuffixWhitelist,
-		RegistrationEmailDomainQuotaEnabled: registrationEmailDomainQuotaEnabled,
-		PromoCodeEnabled:                    req.PromoCodeEnabled,
-		PasswordResetEnabled:                req.PasswordResetEnabled,
-		FrontendURL:                         req.FrontendURL,
-		InvitationCodeEnabled:               req.InvitationCodeEnabled,
-		TotpEnabled:                         req.TotpEnabled,
-		PasskeyEnabled:                      passkeyEnabled,
-		SessionBindingEnabled:               sessionBindingEnabled,
-		StepUpEnabled:                       stepUpEnabled,
-		AuditLogRetentionDays:               req.AuditLogRetentionDays,
-		ConversationArchiveEnabled:          conversationArchiveEnabled,
-		ConversationArchiveRetentionDays:    conversationArchiveRetentionDays,
-		LoginAgreementEnabled:               req.LoginAgreementEnabled,
-		LoginAgreementMode:                  loginAgreementMode,
-		LoginAgreementUpdatedAt:             loginAgreementUpdatedAt,
-		LoginAgreementDocuments:             loginAgreementDocuments,
-		SMTPHost:                            req.SMTPHost,
-		SMTPPort:                            req.SMTPPort,
-		SMTPUsername:                        req.SMTPUsername,
-		SMTPPassword:                        req.SMTPPassword,
-		SMTPFrom:                            req.SMTPFrom,
-		SMTPFromName:                        req.SMTPFromName,
-		SMTPUseTLS:                          req.SMTPUseTLS,
-		TurnstileEnabled:                    req.TurnstileEnabled,
-		TurnstileSiteKey:                    req.TurnstileSiteKey,
-		TurnstileSecretKey:                  req.TurnstileSecretKey,
-		TencentCaptchaEnabled:               req.TencentCaptchaEnabled,
-		TencentCaptchaAppID:                 req.TencentCaptchaAppID,
-		TencentCaptchaAppSecretKey:          req.TencentCaptchaAppSecretKey,
-		TencentCaptchaCloudSecretID:         req.TencentCaptchaCloudSecretID,
-		TencentCaptchaCloudSecretKey:        req.TencentCaptchaCloudSecretKey,
-		TencentCaptchaRegion:                req.TencentCaptchaRegion,
-		AliyunCaptchaEnabled:                req.AliyunCaptchaEnabled,
-		AliyunCaptchaAccessKeyID:            req.AliyunCaptchaAccessKeyID,
-		AliyunCaptchaAccessKeySecret:        req.AliyunCaptchaAccessKeySecret,
-		AliyunCaptchaSceneID:                req.AliyunCaptchaSceneID,
-		AliyunCaptchaPrefix:                 req.AliyunCaptchaPrefix,
-		AliyunCaptchaRegion:                 req.AliyunCaptchaRegion,
+		RegistrationEnabled:                       req.RegistrationEnabled,
+		EmailVerifyEnabled:                        req.EmailVerifyEnabled,
+		RegistrationEmailSuffixWhitelist:          req.RegistrationEmailSuffixWhitelist,
+		RegistrationEmailDomainQuotaEnabled:       registrationEmailDomainQuotaEnabled,
+		PromoCodeEnabled:                          req.PromoCodeEnabled,
+		PasswordResetEnabled:                      req.PasswordResetEnabled,
+		FrontendURL:                               req.FrontendURL,
+		InvitationCodeEnabled:                     req.InvitationCodeEnabled,
+		TotpEnabled:                               req.TotpEnabled,
+		PasskeyEnabled:                            passkeyEnabled,
+		SessionBindingEnabled:                     sessionBindingEnabled,
+		StepUpEnabled:                             stepUpEnabled,
+		AuditLogRetentionDays:                     req.AuditLogRetentionDays,
+		ConversationArchiveEnabled:                conversationArchiveEnabled,
+		ConversationArchiveRetentionDays:          conversationArchiveRetentionDays,
+		ConversationArchiveExcludedHarnessUserIDs: conversationArchiveExcludedHarnessUserIDs,
+		LoginAgreementEnabled:                     req.LoginAgreementEnabled,
+		LoginAgreementMode:                        loginAgreementMode,
+		LoginAgreementUpdatedAt:                   loginAgreementUpdatedAt,
+		LoginAgreementDocuments:                   loginAgreementDocuments,
+		SMTPHost:                                  req.SMTPHost,
+		SMTPPort:                                  req.SMTPPort,
+		SMTPUsername:                              req.SMTPUsername,
+		SMTPPassword:                              req.SMTPPassword,
+		SMTPFrom:                                  req.SMTPFrom,
+		SMTPFromName:                              req.SMTPFromName,
+		SMTPUseTLS:                                req.SMTPUseTLS,
+		TurnstileEnabled:                          req.TurnstileEnabled,
+		TurnstileSiteKey:                          req.TurnstileSiteKey,
+		TurnstileSecretKey:                        req.TurnstileSecretKey,
+		TencentCaptchaEnabled:                     req.TencentCaptchaEnabled,
+		TencentCaptchaAppID:                       req.TencentCaptchaAppID,
+		TencentCaptchaAppSecretKey:                req.TencentCaptchaAppSecretKey,
+		TencentCaptchaCloudSecretID:               req.TencentCaptchaCloudSecretID,
+		TencentCaptchaCloudSecretKey:              req.TencentCaptchaCloudSecretKey,
+		TencentCaptchaRegion:                      req.TencentCaptchaRegion,
+		AliyunCaptchaEnabled:                      req.AliyunCaptchaEnabled,
+		AliyunCaptchaAccessKeyID:                  req.AliyunCaptchaAccessKeyID,
+		AliyunCaptchaAccessKeySecret:              req.AliyunCaptchaAccessKeySecret,
+		AliyunCaptchaSceneID:                      req.AliyunCaptchaSceneID,
+		AliyunCaptchaPrefix:                       req.AliyunCaptchaPrefix,
+		AliyunCaptchaRegion:                       req.AliyunCaptchaRegion,
 		APIKeyACLTrustForwardedIP: func() bool {
 			if req.APIKeyACLTrustForwardedIP != nil {
 				return *req.APIKeyACLTrustForwardedIP
@@ -2226,6 +2234,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		AuditLogRetentionDays:                                  updatedSettings.AuditLogRetentionDays,
 		ConversationArchiveEnabled:                             updatedSettings.ConversationArchiveEnabled,
 		ConversationArchiveRetentionDays:                       updatedSettings.ConversationArchiveRetentionDays,
+		ConversationArchiveExcludedHarnessUserIDs:              updatedSettings.ConversationArchiveExcludedHarnessUserIDs,
 		LoginAgreementEnabled:                                  updatedSettings.LoginAgreementEnabled,
 		LoginAgreementMode:                                     updatedSettings.LoginAgreementMode,
 		LoginAgreementUpdatedAt:                                updatedSettings.LoginAgreementUpdatedAt,

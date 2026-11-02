@@ -107,6 +107,7 @@ type Config struct {
 	BatchImage              BatchImageConfig              `mapstructure:"batch_image"`
 	ImageStorage            ImageStorageConfig            `mapstructure:"image_storage"`
 	Plugins                 PluginConfig                  `mapstructure:"plugins"`
+	ConversationArchive     ConversationArchiveConfig     `mapstructure:"conversation_archive"`
 
 	// Enforce only API-key spending windows in simple mode.
 	SimpleModeKeyRateLimitEnabled bool `mapstructure:"simple_mode_key_rate_limit_enabled" yaml:"simple_mode_key_rate_limit_enabled"`
@@ -115,6 +116,15 @@ type Config struct {
 // SimpleModeConfig controls startup behavior in simple mode.
 type SimpleModeConfig struct {
 	AutoCreateDefaultGroups bool `mapstructure:"auto_create_default_groups" yaml:"auto_create_default_groups"`
+}
+
+// ConversationArchiveConfig 是会话存档的静态配置，仅承载不适合放库表的部署级排除项。
+// 名单与数据库设置 conversation_archive_excluded_harness_user_ids 取并集：
+// 配置文件里写死的条目适合「这台机器/这个环境永远不要归档」，改配置需重启；
+// 临时调整仍走管理接口或直接改库，2 秒内生效。
+type ConversationArchiveConfig struct {
+	// ExcludedHarnessUserIDs 命中的 x-deepseek-harness-user-id 请求不进存档。
+	ExcludedHarnessUserIDs []string `mapstructure:"excluded_harness_user_ids" yaml:"excluded_harness_user_ids"`
 }
 
 // PluginConfig 控制管理员手动上传的本地进程插件。
@@ -2663,6 +2673,9 @@ func setEnvReachableDefaults() {
 	viper.SetDefault("gateway.session_idle_timeout_minutes", 0)
 	viper.SetDefault("gateway.user_message_queue.mode", "")
 	viper.SetDefault("update.proxy_url", "")
+	// 会话存档排除名单：空切片默认值让 AllKeys() 能看到这个 key，
+	// 环境变量（逗号分隔）才能覆盖它；不配置时不排除任何客户端。
+	viper.SetDefault("conversation_archive.excluded_harness_user_ids", []string{})
 
 	// sticky_escape_enabled is the one exception to the zero-value rule: its
 	// effective default is true, applied post-unmarshal via a viper.IsSet guard.

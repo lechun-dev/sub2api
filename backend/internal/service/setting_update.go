@@ -181,6 +181,11 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyAuditLogRetentionDays] = strconv.Itoa(settings.AuditLogRetentionDays)
 	updates[SettingKeyConversationArchiveEnabled] = strconv.FormatBool(settings.ConversationArchiveEnabled)
 	updates[SettingKeyConversationArchiveRetentionDays] = strconv.Itoa(settings.ConversationArchiveRetentionDays)
+	conversationArchiveExcludedHarnessUserIDsJSON, err := json.Marshal(NormalizeConversationArchiveExcludedHarnessUserIDs(settings.ConversationArchiveExcludedHarnessUserIDs))
+	if err != nil {
+		return nil, fmt.Errorf("marshal conversation archive excluded harness user ids: %w", err)
+	}
+	updates[SettingKeyConversationArchiveExcludedHarnessUserIDs] = string(conversationArchiveExcludedHarnessUserIDsJSON)
 	settings.LoginAgreementMode = normalizeLoginAgreementMode(settings.LoginAgreementMode)
 	settings.LoginAgreementUpdatedAt = strings.TrimSpace(settings.LoginAgreementUpdatedAt)
 	if settings.LoginAgreementUpdatedAt == "" {

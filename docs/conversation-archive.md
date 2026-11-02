@@ -8,8 +8,9 @@
 |---|---|---|---|
 | `conversation_archive_enabled` | bool | `false` | 关闭时请求完全不进入存档代码路径 |
 | `conversation_archive_retention_days` | int | `90` | `<=0` 表示永久保留；清理任务每 24h 执行一次，分批删除 |
+| `conversation_archive_excluded_harness_user_ids` | string[] | `[]` | 不归档的客户端标识：DSH 的 `x-deepseek-harness-user-id` 或任意客户端的 `x-sub2api-archive-client-id`，最多 200 条；见下文「排除本机 / 调试流量」 |
 
-管理入口：管理后台「系统设置 → 安全 → 会话存档」，两个字段可同时保存。
+管理入口：管理后台「系统设置 → 安全 → 会话存档」只能改前两个字段（开关、保留天数）；**排除名单没有页面入口**，用配置文件 `conversation_archive.excluded_harness_user_ids` 或下面「按客户端标识长期排除」里的接口 / SQL 配置。
 
 ## 覆盖范围
 
@@ -23,6 +24,129 @@
 **不归档**：`/v1/messages/count_tokens`、embeddings、images、audio、video、seedance 等非对话端点；Responses WebSocket（连接被 hijack，中间件拿不到帧，本期不覆盖）。
 
 **只保存文本**：图片、附件、工具调用参数、tool_result、思考过程一律丢弃；需要分析工具行为时应另建方案。
+
+## 排除本机 / 调试流量
+
+某些流量不该进存档（本机调试、压测、内部巡检、脚本自测）。客户端只要在请求头带上标记，本次请求就不会归档：
+
+```http
+X-Sub2API-Archive: skip
+```
+
+| 请求头取值（大小写不敏感） | 行为 |
+|---|---|
+| `skip` / `off` / `none` / `no` / `local` / `false` / `0` | 跳过归档，请求正常转发 |
+| `on` / `true` / `1`、空值、未识别取值 | 按默认行为归档 |
+
+- 支持逗号/分号/空格分隔多值，例如 `X-Sub2API-Archive: on, local`（命中任一跳过取值即跳过）。
+- 命中后中间件在包装请求体之前就退出：不做 tee 拷贝、不进队列、不落库，只影响当前请求，不影响全局开关，也不会让线上会话漏档。
+- 该标记头读完即从请求中删除，不会转发到上游（避免影响上游请求指纹）。
+- 常量位置：`backend/internal/server/middleware/conversation_archive.go` 的 `ConversationArchiveSkipHeader`；如需换成团队既有头名，改这一处即可。
+- 该规则只作用于会话存档链路，usage_logs / 计费 / 限流仍照常统计。
+
+客户端示例：
+
+```bash
+curl -H 'X-Sub2API-Archive: skip' https://<gateway>/v1/messages ...
+```
+
+### 按客户端标识长期排除（DSH / OpenClaw 等）
+
+DSH（DeepSeek Harness）的 `deepseek-official` 适配器**不支持自定义请求头**，但它每次请求都会带一个稳定的本机标识：
+
+| 请求头 | 来源 | 粒度 |
+|---|---|---|
+| `x-deepseek-harness-user-id` | 客户端 `~/.dsh/.anonymous-user-id`（首次启动生成后固定） | 单台机器 |
+| `user-agent` | `deepseek-harness/<版本>` | 只区分"是不是 DSH" |
+| `x-deepseek-harness-session-id` | 当前会话 | 单次会话，逐轮变化 |
+
+把要排除机器的 UUID 写进去即可，命中即不归档，客户端零改动。这个设置**没有页面入口**，三处任选（配置文件的名单与库表名单取并集）：
+
+```yaml
+# 方式一：配置文件（适合「这台机器永远不归档」，改完需重启进程）
+# config.yaml / deploy/config.example.yaml
+conversation_archive:
+  excluded_harness_user_ids:
+    - a11a320c-7a36-4aee-89ba-92f917953065
+```
+
+```bash
+# 方式二：管理接口（运行期调整，2 秒内生效，无需重启）
+curl -X PUT https://<gateway>/api/v1/admin/settings \
+  -H "x-api-key: $ADMIN_KEY" -H 'Content-Type: application/json' \
+  -d '{"conversation_archive_excluded_harness_user_ids":["a11a320c-7a36-4aee-89ba-92f917953065"]}'
+
+# 查看本机标识
+cat ~/.dsh/.anonymous-user-id
+```
+
+```sql
+-- 方式三：直接改库（连不上管理接口时用；进程内缓存 2 秒后生效）
+INSERT INTO settings (key, value)
+VALUES ('conversation_archive_excluded_harness_user_ids', '["a11a320c-7a36-4aee-89ba-92f917953065"]')
+ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW();
+```
+
+`PUT /api/v1/admin/settings` 里该字段**省略表示保持现值**（传 `[]` 才是清空），所以只改开关或保留天数时不会被顺手清掉。配置文件里的列表也可以用环境变量覆盖（逗号分隔）：
+
+```bash
+CONVERSATION_ARCHIVE_EXCLUDED_HARNESS_USER_IDS=a11a320c-7a36-4aee-89ba-92f917953065,other-machine
+```
+
+三种来源是**并集**：配置文件/环境变量进程启动时固化（改完需重启），库表名单 2 秒内生效。
+
+- 入库前统一 `trim + 小写 + 去重`，单条上限 128 字符、最多 200 条；写 `["A11A320C-..."]` 与全小写等价。
+- 名单命中在开关判定之后、包装请求体之前生效：不 tee、不入队、不落库。
+- 设置读取失败时**按空名单处理**（继续归档），宁可多存也不静默漏档；进程内缓存 2 秒，改完立即生效，无需重启。
+- 同样只作用于存档链路，usage_logs / 计费 / 限流不受影响。要让"某些流量彻底不走网关"，那是 API Key 与分组策略的事，不在这里。
+- 按 key / 用户维度排除不在本功能范围内：属于"谁的会话"，与"哪台机器发的"是两个维度。
+
+### OpenClaw（客户端自带 headers 配置）
+
+OpenClaw 每个模型请求只带 `user-agent: openclaw/<版本>`，这是**客户端级**标识，区分不了机器；但它原生支持 provider 静态请求头（`models.providers.<id>.headers`，合并发生在默认归因头与鉴权头之后），两种写法按需选：
+
+**写法一：直接跳过（最简单，服务端零改动）**
+
+```jsonc
+// openclaw.json（那台机器上的同名配置）
+{
+  "models": {
+    "providers": {
+      "sub2api": {
+        "baseUrl": "https://<gateway>/v1",
+        "apiKey": "<api-key>",
+        "api": "openai-completions",
+        "headers": {
+          "X-Sub2API-Archive": "skip"
+        },
+        "models": [{ "id": "<model-id>", "name": "<model-id>", "input": ["text", "image"] }]
+      }
+    }
+  }
+}
+```
+
+**写法二：上报机器标识，交给服务端名单统一管（推荐，可随时开关）**
+
+```jsonc
+"headers": {
+  "x-sub2api-archive-client-id": "openclaw-lq-mbp"
+}
+```
+
+然后把 `openclaw-lq-mbp` 写进 `conversation_archive.excluded_harness_user_ids`（或管理接口 / 库表名单），与 DSH 的 UUID 放同一份名单即可：
+
+```yaml
+conversation_archive:
+  excluded_harness_user_ids:
+    - a11a320c-7a36-4aee-89ba-92f917953065   # 本机 DSH
+    - openclaw-lq-mbp                        # 本机 OpenClaw
+```
+
+- 两个头名大小写都不敏感；取值表见上一节，名单匹配统一 `trim + 小写`。
+- `x-sub2api-archive-client-id` 与 `X-Sub2API-Archive` 一样读完即删，不会转发到上游，也不影响 usage_logs / 计费 / 限流。
+- 想改成机器名的粒度更细就换值（如 `openclaw-mbp-14`），名单同步加一行，不用重启（库表名单 2 秒生效；配置文件需重启）。
+- QClaw 桌面版的 provider 默认指向 QClaw 云端模型网关（`${QCLAW_LLM_BASE_URL}`），不经过本网关，改它没有意义；本文只对把 `baseUrl` 指向本网关的 OpenClaw 生效。
 
 ## 表结构
 

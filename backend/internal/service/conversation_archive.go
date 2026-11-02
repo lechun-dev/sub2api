@@ -261,21 +261,45 @@ type ConversationArchiveService struct {
 	enabledCache  bool
 	enabledExpiry time.Time
 
+	excludedMu     sync.Mutex
+	excludedCache  []string
+	excludedExpiry time.Time
+
+	// configExcludedClients 来自配置文件（conversation_archive.excluded_harness_user_ids），
+	// 启动后不变，因此不参与缓存刷新，与库表名单取并集。
+	configExcludedClients []string
+
 	droppedCount uint64
 	writeFailed  uint64
 	writtenCount uint64
 }
 
+// ConversationArchiveOption 是会话存档服务的可选配置项。
+type ConversationArchiveOption func(*ConversationArchiveService)
+
+// WithConversationArchiveExcludedClients 注入配置文件里的排除名单（静态，重启生效）。
+func WithConversationArchiveExcludedClients(ids []string) ConversationArchiveOption {
+	return func(s *ConversationArchiveService) {
+		s.configExcludedClients = NormalizeConversationArchiveExcludedHarnessUserIDs(ids)
+	}
+}
+
 // NewConversationArchiveService 创建会话存档服务（不启动后台协程）。
-func NewConversationArchiveService(repo ConversationArchiveRepository, settingService *SettingService) *ConversationArchiveService {
+func NewConversationArchiveService(repo ConversationArchiveRepository, settingService *SettingService, opts ...ConversationArchiveOption) *ConversationArchiveService {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &ConversationArchiveService{
+	svc := &ConversationArchiveService{
 		repo:           repo,
 		settingService: settingService,
 		queue:          make(chan *ConversationArchive, conversationArchiveQueueCapacity),
 		ctx:            ctx,
 		cancel:         cancel,
 	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(svc)
+		}
+	}
+	return svc
 }
 
 // Start 启动异步写入与保留期清理协程。
@@ -313,6 +337,47 @@ func (s *ConversationArchiveService) Enabled(ctx context.Context) bool {
 	s.enabledCache = enabled
 	s.enabledExpiry = time.Now().Add(2 * time.Second)
 	return enabled
+}
+
+// ExcludedClient 判断该客户端标识（DSH 的 x-deepseek-harness-user-id）是否在排除名单内，
+// 命中的请求不归档。名单读取同样使用 2 秒进程内缓存，避免每请求读库。
+func (s *ConversationArchiveService) ExcludedClient(ctx context.Context, clientIDs ...string) bool {
+	if s == nil || len(clientIDs) == 0 {
+		return false
+	}
+	ids := make([]string, 0, len(clientIDs))
+	for _, clientID := range clientIDs {
+		clientID = strings.ToLower(strings.TrimSpace(clientID))
+		if clientID != "" {
+			ids = append(ids, clientID)
+		}
+	}
+	if len(ids) == 0 {
+		return false
+	}
+	// 配置文件里的名单是启动时固定的，先判它，命中就不用去读库。
+	for _, clientID := range ids {
+		if IsExcludedConversationArchiveClient(s.configExcludedClients, clientID) {
+			return true
+		}
+	}
+	if s.settingService == nil {
+		return false
+	}
+	s.excludedMu.Lock()
+	defer s.excludedMu.Unlock()
+	if !time.Now().Before(s.excludedExpiry) {
+		loadCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+		s.excludedCache = s.settingService.GetConversationArchiveExcludedHarnessUserIDs(loadCtx)
+		s.excludedExpiry = time.Now().Add(2 * time.Second)
+		cancel()
+	}
+	for _, clientID := range ids {
+		if IsExcludedConversationArchiveClient(s.excludedCache, clientID) {
+			return true
+		}
+	}
+	return false
 }
 
 // Record 非阻塞入队一条归档记录；队列打满时丢弃并计数，绝不阻塞客户端请求。

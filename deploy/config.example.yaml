@@ -1326,3 +1326,22 @@ internal_identity:
   secret: ""
   # 允许的时间戳偏差（秒），超出即拒绝，限制重放窗口
   max_skew_seconds: 300
+
+# =============================================================================
+# 会话存档（Conversation Archive）
+# 开关与保留期在管理后台「系统设置 → 安全 → 会话存档」里改（存库表，保存即生效）。
+# 这里只放部署级的静态排除名单：适合「这台机器 / 这个环境永远不要归档」，
+# 改配置文件需要重启进程；运行期临时增删请用管理接口或直接改库（2 秒内生效）。
+# 两处名单是并集，任一处命中就不归档。
+# =============================================================================
+conversation_archive:
+  # 命中下面任一客户端标识的请求不进存档：
+  # - DSH 的 x-deepseek-harness-user-id（值 = 客户端 ~/.dsh/.anonymous-user-id，一台机器一个且长期固定）
+  # - 任意客户端自报的 x-sub2api-archive-client-id（OpenClaw 等可自定义请求头的客户端用它上报机器名）
+  # 两个头共用这一份名单，命中即不归档；客户端侧无需改服务端开关。
+  # 也可用环境变量 CONVERSATION_ARCHIVE_EXCLUDED_HARNESS_USER_IDS（逗号分隔）覆盖。
+  excluded_harness_user_ids: []
+  # 例如：
+  # excluded_harness_user_ids:
+  #   - a11a320c-7a36-4aee-89ba-92f917953065   # 本机 DSH
+  #   - openclaw-lq-mbp                        # 本机 OpenClaw（provider.headers 里上报）

@@ -297,6 +297,8 @@ const (
 	// 会话存档设置
 	SettingKeyConversationArchiveEnabled       = "conversation_archive_enabled"        // 是否归档用户与 AI 的文本会话，默认关闭
 	SettingKeyConversationArchiveRetentionDays = "conversation_archive_retention_days" // 会话存档保留天数（<=0 永久保留），默认 90
+	// 会话存档排除的本机客户端标识（DSH 的 x-deepseek-harness-user-id），命中的请求不归档，默认空
+	SettingKeyConversationArchiveExcludedHarnessUserIDs = "conversation_archive_excluded_harness_user_ids"
 
 	// LinuxDo Connect OAuth 登录设置
 	SettingKeyLinuxDoConnectEnabled      = "linuxdo_connect_enabled"

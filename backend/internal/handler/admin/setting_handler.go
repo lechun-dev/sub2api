@@ -152,6 +152,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		AuditLogRetentionDays:                                  settings.AuditLogRetentionDays,
 		ConversationArchiveEnabled:                             settings.ConversationArchiveEnabled,
 		ConversationArchiveRetentionDays:                       settings.ConversationArchiveRetentionDays,
+		ConversationArchiveExcludedHarnessUserIDs:              settings.ConversationArchiveExcludedHarnessUserIDs,
 		LoginAgreementEnabled:                                  settings.LoginAgreementEnabled,
 		LoginAgreementMode:                                     settings.LoginAgreementMode,
 		LoginAgreementUpdatedAt:                                settings.LoginAgreementUpdatedAt,

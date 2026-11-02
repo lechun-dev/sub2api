@@ -289,7 +289,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	auditLogService := service.ProvideAuditLogService(auditLogRepository, settingService)
 	auditLogHandler := admin.NewAuditLogHandler(auditLogService, totpService)
 	conversationArchiveRepository := repository.NewConversationArchiveRepository(db)
-	conversationArchiveService := service.ProvideConversationArchiveService(conversationArchiveRepository, settingService)
+	conversationArchiveService := service.ProvideConversationArchiveService(conversationArchiveRepository, settingService, configConfig)
 	conversationArchiveHandler := admin.NewConversationArchiveHandler(conversationArchiveService)
 	upstreamBillingProbeService := service.ProvideUpstreamBillingProbeService(accountRepository, accountTestService, settingService, leaderLockCache, db)
 	openCodeGoUsageService := service.ProvideOpenCodeGoUsageService(accountRepository, httpUpstream, settingService, leaderLockCache, db)
