@@ -1340,8 +1340,10 @@ conversation_archive:
   # - 任意客户端自报的 x-sub2api-archive-client-id（OpenClaw 等可自定义请求头的客户端用它上报机器名）
   # 两个头共用这一份名单，命中即不归档；客户端侧无需改服务端开关。
   # 也可用环境变量 CONVERSATION_ARCHIVE_EXCLUDED_HARNESS_USER_IDS（逗号分隔）覆盖。
-  excluded_harness_user_ids: []
-  # 例如：
-  # excluded_harness_user_ids:
-  #   - a11a320c-7a36-4aee-89ba-92f917953065   # 本机 DSH
-  #   - openclaw-lq-mbp                        # 本机 OpenClaw（provider.headers 里上报）
+  # 不排除任何客户端时写成 excluded_harness_user_ids: []。
+  excluded_harness_user_ids:
+    # 本机 DSH（值来自 cat ~/.dsh/.anonymous-user-id）
+    - a11a320c-7a36-4aee-89ba-92f917953065
+    # 本机 OpenClaw：先在该机器的 openclaw.json 里上报同名值再取消注释
+    # models.providers.<id>.headers = {"x-sub2api-archive-client-id": "openclaw-lq-mbp"}
+    # - openclaw-lq-mbp
