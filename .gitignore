@@ -123,6 +123,7 @@ CLAUDE.md
 .claude
 scripts
 !backend/scripts/
+!.github/scripts/
 !backend/scripts/resolve-version.sh
 .code-review-state
 #openspec/
@@ -136,6 +137,7 @@ docs/*
 !docs/client-access-policy.md
 !docs/admin-api-keys.md
 !docs/conversation-archive.md
+!docs/UPSTREAM-MERGE-PROTECTION.md
 !docs/internal-conversation-api.md
 !docs/admin-api-key-lookup.md
 !docs/PAYMENT.md

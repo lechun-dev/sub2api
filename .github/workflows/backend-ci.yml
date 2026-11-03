@@ -25,6 +25,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      # 本地自定义功能守护：会话存档排除（excluded_harness_user_ids / X-Sub2API-Archive）。
+      # 上游合并覆盖该功能时，这里直接红，详见 docs/UPSTREAM-MERGE-PROTECTION.md。
+      - name: Check local-only conversation archive exclusion
+        run: bash .github/scripts/check-conversation-archive.sh
       - name: Check Docker Compose simple mode environment
         run: /bin/sh deploy/tests/docker-compose-simple-mode-env-test.sh
       - uses: actions/setup-go@v6
