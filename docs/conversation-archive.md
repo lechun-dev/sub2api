@@ -148,6 +148,49 @@ conversation_archive:
 - 想改成机器名的粒度更细就换值（如 `openclaw-mbp-14`），名单同步加一行，不用重启（库表名单 2 秒生效；配置文件需重启）。
 - QClaw 桌面版的 provider 默认指向 QClaw 云端模型网关（`${QCLAW_LLM_BASE_URL}`），不经过本网关，改它没有意义；本文只对把 `baseUrl` 指向本网关的 OpenClaw 生效。
 
+### 用代码模拟 DSH（自测 / 回归）
+
+`tools/simulate_dsh_request.py` 用标准库复现 DSH 的请求指纹（`user-agent: deepseek-harness/<ver>` + `x-deepseek-harness-user-id` + `x-deepseek-harness-session-id`），不需要打开 DSH 就能验证排除链路：
+
+```bash
+# 带本机机器标识：预期 HTTP 200，但 conversation_archives 不新增
+python3 tools/simulate_dsh_request.py --mode exclude
+
+# 通用跳过头：预期同样不新增
+python3 tools/simulate_dsh_request.py --mode skip
+
+# 对照组：不带任何标识（UA 仍是 DSH），预期新增 1 条，用来确认排除没有误杀
+python3 tools/simulate_dsh_request.py --mode control
+
+# 只看将要发送的内容，不发请求
+python3 tools/simulate_dsh_request.py --mode exclude --dry-run
+```
+
+密钥读取顺序：`--api-key` > `$SUB2API_API_KEY` > `~/.dsh/.credentials.yaml` 的 `DEEPSEEK_API_KEY`；机器标识默认取 `~/.dsh/.anonymous-user-id`，也可用 `--harness-id` 指定（例如模拟另一台机器）。默认 `max_tokens=8`，单次消耗可忽略。
+
+要自己写代码而不是用脚本，核心只有两件事——走 Anthropic Messages 协议，把机器标识放进请求头：
+
+```bash
+curl -sS https://<gateway>/v1/messages \
+  -H "x-api-key: $SUB2API_API_KEY" \
+  -H 'anthropic-version: 2023-06-01' \
+  -H 'content-type: application/json' \
+  -H 'user-agent: deepseek-harness/0.2.1-rc.5' \
+  -H "x-deepseek-harness-user-id: $(cat ~/.dsh/.anonymous-user-id)" \
+  -H "x-deepseek-harness-session-id: $(uuidgen)" \
+  -d '{"model":"deepseek-flash","max_tokens":8,"messages":[{"role":"user","content":"ping"}]}'
+```
+
+验证是否真的没归档（异步队列，等 1–2 秒再查）：
+
+```sql
+SELECT id, user_id, api_key_id, model, created_at
+FROM conversation_archives
+WHERE user_id = <uid> AND created_at >= now() - interval '5 minutes';
+```
+
+请求头优先级：`X-Sub2API-Archive: skip` 在中间件最前面判定，命中即返回，不再看机器码名单；两者都不命中才归档。注意 UA 只是「像 DSH」，服务端排除只看 `x-deepseek-harness-user-id`（或 `x-sub2api-archive-client-id`）是否在名单里，所以只改 UA 不会跳过归档。
+
 ## 表结构
 
 | 列 | 说明 |
